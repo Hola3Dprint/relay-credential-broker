@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { adaptModernMcp, adaptModernResponses } from "./modern-mcp.js";
 import {
   Store,
   accountKey,
@@ -567,17 +569,40 @@ export async function createApp(store: Store) {
       return res.status(401).json({ error: "CLIENT_ACCESS_REQUIRED" });
     if (limited(client.id))
       return res.status(429).json({ error: "RATE_LIMITED" });
-    const transport = new StreamableHTTPServerTransport({
+    const modernRequest = adaptModernMcp(req, res);
+    if (modernRequest.handled) return;
+    const Transport = modernRequest.modern
+      ? WebStandardStreamableHTTPServerTransport
+      : StreamableHTTPServerTransport;
+    const transport = new Transport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
+    if (modernRequest.modern) adaptModernResponses(transport, req.body.method);
     const server = createMcp((op, body) => agentCall(client, op, body));
     res.on("close", () => {
       void transport.close();
       void server.close();
     });
     await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    if (transport instanceof WebStandardStreamableHTTPServerTransport) {
+      const response = await transport.handleRequest(
+        new Request("http://127.0.0.1/mcp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: req.headers.accept ?? "application/json, text/event-stream",
+            "MCP-Protocol-Version": String(req.headers["mcp-protocol-version"]),
+          },
+          body: JSON.stringify(req.body),
+        }),
+        { parsedBody: req.body },
+      );
+      response.headers.forEach((value, name) => res.setHeader(name, value));
+      res.status(response.status).send(await response.text());
+    } else {
+      await transport.handleRequest(req, res, req.body);
+    }
   });
   app.get("/mcp", (_, res) => res.status(405).end());
   app.delete("/mcp", (_, res) => res.status(405).end());

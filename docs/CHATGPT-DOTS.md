@@ -2,7 +2,7 @@
 
 Relay is an MCP-backed custom plugin. It supports a private connection using OpenAI Secure MCP Tunnel. Account/workspace availability and permissions are controlled by OpenAI. ChatGPT discovery and installation of the four-tool catalog were verified on the development machine; see the verification record for the scope of live checks.
 
-For your own Mac, use [MAC.md](MAC.md): its Node preparation helper and Mac launcher replace the Windows-specific commands below. The current catalog has seven tools, and native Chrome fills were verified through FraudBot on Windows.
+For your own Mac, use [MAC.md](MAC.md): its Node preparation helper and Mac launcher replace the Windows-specific commands below. The current catalog has nine tools, and native Chrome fills were verified through FraudBot on Windows.
 
 ## 1. Prepare the local broker
 
@@ -35,6 +35,12 @@ node scripts/dot-runtime.mjs stop
 
 The runner loads the approved key only into the child environment as `CONTROL_PLANE_API_KEY`. The profile stores an environment-variable reference. It buffers and redacts diagnostic output and prints compact runtime status. Status and stop do not read the credential file. The official client stores its own managed-runtime metadata under its Windows state directory. Local `ready` does not alone prove a ChatGPT request succeeded; verify tool discovery and a real tool call.
 
+The runtime helper enables the MCP STDIO initialized notification both in the child environment and in the saved profile after each init/connect. The managed tunnel client regenerates its profile on connect, so a manually added setting alone does not survive reconnects. After updating the helper, stop and reconnect the managed runtime once; an already running child keeps its previous settings. Check `/health/mcp` and a read-only `list_accounts` call, since tunnel health alone does not prove tool calls work.
+
+For ChatGPT's sessionless MCP clients, set `mcpServerUrl` to `http://127.0.0.1:4318/mcp` in the ignored `data/dot-connection.json`, then stop and reconnect with the helper. This selects Relay's authenticated stateless HTTP transport. The helper unlocks the existing scoped client token locally and supplies an environment-referenced authorization header to the tunnel child; no token is written into the profile or passed on the command line. Other destinations are refused. The broker remains on loopback with the same client grant. This mode requires the Node runtime helper for launch; the optional native service launcher does not currently supply its authorization header.
+
+The HTTP endpoint supports `server/discover`, `tools/list`, and `tools/call` for protocol `2026-07-28`, alongside the SDK's legacy protocol versions. Modern requests must include protocol, client identity and capabilities in `params._meta`. Discovery advertises only the stateless tools capability; subscriptions and unrelated modern methods are not supported. Tool schemas and client grants still apply. The adapter adds server identity and completion metadata to results and marks discovery/tool lists private with zero cache lifetime. After refreshing ChatGPT's tools, require a successful `list_accounts` call from the intended Dot. The live FraudBot read-only check returned `READY_TO_FILL` after this repair; no real website sign-in was performed for that connection check.
+
 The tunnel makes outbound HTTPS requests; no inbound firewall rule or public broker listener is required. See the [official Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for current setup and permissions.
 
 For boot startup, the README describes the optional Windows service supervisor. Tunnel registration, runtime-key provisioning and service-account rights must be completed first.
@@ -43,13 +49,15 @@ After explicitly approving the new encrypted destination `data/tunnel-runtime.dp
 
 ## 3. Add Relay in ChatGPT
 
-Open **ChatGPT Plugins → Add → Create custom MCP server**. Name it **Relay Credential Broker** (the directory already has an unrelated app named Relay). Under Connection choose **Tunnel**, and select the available tunnel or enter its ID. For this stdio bridge choose **No authentication**: access relies on tunnel/workspace authentication and the internal scoped grant, with no public anonymous HTTP endpoint. Create the plugin and connect it. Inspect the seven discovered tools on its app details page.
+Open **ChatGPT Plugins → Add → Create custom MCP server**. Name it **Relay Credential Broker** (the directory already has an unrelated app named Relay). Under Connection choose **Tunnel**, and select the available tunnel or enter its ID. For this private tunnel choose **No authentication**: access relies on tunnel/workspace authentication and the internal scoped grant, with no public anonymous HTTP endpoint. Create the plugin and connect it. Inspect the nine discovered tools on its app details page.
 
 Use the [official custom MCP guide](https://developers.openai.com/api/docs/guides/custom-mcp-server) and [connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt) if your UI differs. Enable Relay in the target Dot's permitted plugins. Choose the permitted action policy supported by your account. Sign-in/reset and signup are mutating tools; proactive read-only modes or host safeguards may restrict them.
 
 ## 4. Teach the Dot the workflow
 
 For the cloud browser's native private form, see [PRIVATE-SIGNIN.md](PRIVATE-SIGNIN.md). The Dot calls `prepare_private_signin` **before** awaiting `browserAuth.request`; the local companion fills the matching private form and the owner confirms Sign in. This separately granted mode needs the configured Dot chat open in paired desktop Chrome. The nine-tool catalog adds that trigger and a credential-free status tool.
+
+Use the Dot's own cloud computer for navigation, files, and outcome checks. Prepare a fresh job immediately before opening the native request, using the current website's exact HTTPS origin and `demo:false`. Open the native request only after `ARMED`, then check the same requestId afterward. New armed jobs supersede older armed jobs; do not wait five minutes for expiration. A transport failure before any fill or website submission is a connection blocker, not a rejected website login: stop and preserve existing website failure counts. Neither `READY_TO_FILL` nor `FILLED` proves authentication.
 
 Copy this into the Dot's instructions, or upload the portable skills-only package in `plugin/` alongside the connected Relay server:
 

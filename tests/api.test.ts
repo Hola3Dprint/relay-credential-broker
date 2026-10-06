@@ -8,12 +8,19 @@ import { createApp } from "../src/server.js";
 import { demoCredential, demoSite } from "../src/demo.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import { MODERN_PROTOCOL_VERSION } from "../src/modern-mcp.js";
 let store: Store;
 let runtime: Awaited<ReturnType<typeof createApp>>;
 let server: Server;
 let url: string;
 let dir: string;
 const token = "scoped-test-client-token-000000000000000000";
+const modernMeta = {
+  "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION,
+  "io.modelcontextprotocol/clientInfo": { name: "modern-test", version: "1" },
+  "io.modelcontextprotocol/clientCapabilities": {},
+};
 const oldMode = process.env.RELAY_KEY_MODE;
 const oldPass = process.env.RELAY_PASSPHRASE;
 beforeAll(async () => {
@@ -157,6 +164,145 @@ describe("admin and client separation", () => {
       "result.serverInfo.name",
       "relay",
     );
+  });
+  it("negotiates supported versions for modern discovery without widening access", async () => {
+    const body = {
+      jsonrpc: "2.0",
+      id: "discovery",
+      method: "server/discover",
+      params: {
+        _meta: modernMeta,
+      },
+    };
+    const headers = { "MCP-Protocol-Version": "2026-07-28" };
+    expect((await request("/mcp", undefined, body, headers)).status).toBe(401);
+    expect(
+      (await request("/mcp", store.state.adminToken, body, headers)).status,
+    ).toBe(401);
+    const response = await request("/mcp", token, body, headers);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: "discovery",
+      result: {
+        resultType: "complete",
+        supportedVersions: [
+          MODERN_PROTOCOL_VERSION,
+          ...SUPPORTED_PROTOCOL_VERSIONS,
+        ],
+        capabilities: { tools: {} },
+        ttlMs: 0,
+        cacheScope: "private",
+        _meta: { "io.modelcontextprotocol/serverInfo": { name: "relay" } },
+      },
+    });
+    expect(
+      await (
+        await request("/mcp", token, { ...body, id: undefined }, headers)
+      ).json(),
+    ).toHaveProperty("error.code", -32600);
+  });
+  it("runs modern tools without a legacy handshake while preserving schemas and grants", async () => {
+    const call = async (method: string, params: Record<string, unknown>) => {
+      const response = await request(
+        "/mcp",
+        token,
+        {
+          jsonrpc: "2.0",
+          id: method,
+          method,
+          params: { ...params, _meta: modernMeta },
+        },
+        {
+          Accept: "application/json, text/event-stream",
+          "MCP-Protocol-Version": MODERN_PROTOCOL_VERSION,
+        },
+      );
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    const listed = await call("tools/list", {});
+    expect(listed.result.tools).toHaveLength(9);
+    expect(listed.result).toMatchObject({
+      resultType: "complete",
+      ttlMs: 0,
+      cacheScope: "private",
+    });
+    const accounts = await call("tools/call", {
+      name: "list_accounts",
+      arguments: {},
+    });
+    expect(accounts.result).toMatchObject({
+      resultType: "complete",
+      _meta: { "io.modelcontextprotocol/serverInfo": { name: "relay" } },
+    });
+    expect(JSON.stringify(accounts)).toContain("relay-demo");
+    expect(JSON.stringify(accounts)).not.toContain(demoCredential.password);
+    expect(
+      (
+        await call("tools/call", {
+          name: "create_account",
+          arguments: { site: "relay-demo" },
+        })
+      ).result.isError,
+    ).toBe(true);
+    expect(
+      (
+        await call("tools/call", {
+          name: "ensure_login",
+          arguments: { site: 42 },
+        })
+      ).result.isError,
+    ).toBe(true);
+    expect(await call("ping", {})).toHaveProperty("error.code", -32601);
+  });
+  it("rejects missing, unsupported and contradictory modern metadata", async () => {
+    for (const [meta, header] of [
+      [
+        { "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION },
+        MODERN_PROTOCOL_VERSION,
+      ],
+      [
+        {
+          ...modernMeta,
+          "io.modelcontextprotocol/protocolVersion": "2099-01-01",
+        },
+        "2099-01-01",
+      ],
+      [modernMeta, "2025-11-25"],
+    ] as const) {
+      const response = await request(
+        "/mcp",
+        token,
+        {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/list",
+          params: { _meta: meta },
+        },
+        { "MCP-Protocol-Version": header },
+      );
+      expect(await response.json()).toHaveProperty("error.code", -32602);
+    }
+  });
+  it("serves a scoped operational call after negotiation on a fresh stateless request", async () => {
+    const response = await request(
+      "/mcp",
+      token,
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "list_accounts", arguments: {} },
+      },
+      {
+        Accept: "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2025-11-25",
+      },
+    );
+    expect(response.status).toBe(200);
+    const result = await response.text();
+    expect(result).toContain("relay-demo");
+    expect(result).not.toContain(demoCredential.password);
   });
   it("discovers narrow tools and returns scoped account data over the real MCP HTTP client", async () => {
     const client = new Client({ name: "http-test-dot", version: "1" });

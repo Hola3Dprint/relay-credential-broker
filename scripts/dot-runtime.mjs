@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { lstat, readFile } from "node:fs/promises";
+import { lstat, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseEnv } from "node:util";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -18,9 +18,15 @@ if (
 }
 
 let key = "";
+let clientAuthorization = "";
 const redact = (value) =>
   String(value)
     .replaceAll(key || "\0", "[REDACTED]")
+    .replaceAll(clientAuthorization || "\0", "[REDACTED]")
+    .replaceAll(
+      clientAuthorization.replace(/^Bearer /, "") || "\0",
+      "[REDACTED]",
+    )
     .replaceAll(process.env.RELAY_PASSPHRASE || "\0", "[REDACTED]")
     .replace(/sk-[A-Za-z0-9_-]+/g, "[REDACTED]");
 
@@ -107,7 +113,17 @@ try {
     );
   }
   const profileDir = join(repo, "data", "tunnel-profiles");
-  const env = { ...process.env };
+  // Managed connect regenerates the profile before starting (or reusing) its
+  // child. Supply the handshake setting at launch as well as persisting it.
+  const env = {
+    ...process.env,
+    MCP_STDIO_SEND_INITIALIZED_NOTIFICATION: "true",
+  };
+  const useHttp = connection.mcpServerUrl !== undefined;
+  if (useHttp && connection.mcpServerUrl !== "http://127.0.0.1:4318/mcp")
+    throw new Error(
+      "Relay HTTP MCP must use its authenticated loopback endpoint.",
+    );
   if (!["status", "stop"].includes(action)) {
     const keyPath = join(repo, ".env.local");
     const keyStat = await lstat(keyPath);
@@ -126,19 +142,34 @@ try {
         "OPENAI_API_KEY is missing from the approved .env.local file.",
       );
     env.CONTROL_PLANE_API_KEY = key;
+    if (useHttp) {
+      const { Store } = await import(
+        pathToFileURL(join(repo, "dist/server/store.js")).href
+      );
+      const dataDir = resolve(process.env.RELAY_DATA_DIR ?? join(repo, "data"));
+      await lstat(join(dataDir, "vault.enc"));
+      const store = await new Store(dataDir).open();
+      const token = store.state.clientSecrets?.[connection.clientId];
+      store.close();
+      if (!token)
+        throw new Error("A scoped client grant is required for HTTP MCP.");
+      clientAuthorization = `Bearer ${token}`;
+      env.RELAY_MCP_AUTHORIZATION = clientAuthorization;
+      env.MCP_EXTRA_HEADERS = "Authorization: env:RELAY_MCP_AUTHORIZATION";
+    }
   }
+  const targetArgs = useHttp
+    ? ["--mcp-server-url", connection.mcpServerUrl]
+    : ["--mcp-command", connection.mcpCommand];
   const initArgs = [
     "init",
-    "--sample",
-    "sample_mcp_stdio_local",
     "--profile",
     "relay",
     "--profile-dir",
     profileDir,
     "--tunnel-id",
     connection.tunnelId,
-    "--mcp-command",
-    connection.mcpCommand,
+    ...targetArgs,
     "--health-listen-addr",
     "127.0.0.1:0",
     "--control-plane-api-key-ref",
@@ -166,8 +197,7 @@ try {
       profileDir,
       "--tunnel-id",
       connection.tunnelId,
-      "--mcp-command",
-      connection.mcpCommand,
+      ...targetArgs,
       "--runtime-api-key",
       "env:CONTROL_PLANE_API_KEY",
     ],
@@ -181,6 +211,17 @@ try {
     ],
   }[action];
   process.exitCode = await execute(args, env);
+  if (process.exitCode === 0 && ["init", "connect"].includes(action)) {
+    // Official init/connect profiles are JSON (also valid YAML). Connect
+    // replaces custom fields, so restore this setting after every generation.
+    const profilePath = join(profileDir, "relay.yaml");
+    const profile = JSON.parse(await readFile(profilePath, "utf8"));
+    profile.mcp ??= {};
+    if (useHttp)
+      profile.mcp.extra_headers = { Authorization: "env:RELAY_MCP_AUTHORIZATION" };
+    else profile.mcp.stdio_send_initialized_notification = true;
+    await writeFile(profilePath, JSON.stringify(profile, null, 2) + "\n");
+  }
 } catch (error) {
   console.error(redact(error.message));
   process.exitCode = 1;
