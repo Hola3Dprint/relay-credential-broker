@@ -9,6 +9,7 @@ Verified locally on Windows on October 5, 2026. This record distinguishes implem
 - A separate official MCP stdio client discovered all four tools, listed its scoped demo account, ensured password/TOTP sign-in, and read the authenticated catalog page. Run `node scripts/verify-mcp.mjs --client-id <your-demo-client-id>` to reproduce while the broker and demo fixture are running.
 - Windows TPM bootstrap completed through the console. A separate Node process opened the same protected store successfully, verifying wrap and unwrap through Microsoft Platform Crypto Provider.
 - Native .NET 8 service host compiled with no warnings or errors. All PowerShell helper scripts passed parser validation.
+- The optional service-credential helper passed a CurrentUser DPAPI round trip in an isolated non-secret fixture. The real runtime key was not copied to a service credential file; boot service installation remains disabled on the development machine.
 - npm reported zero known vulnerabilities; NuGet reported no vulnerable direct or transitive packages for the service host at verification time.
 
 ## UI verification
@@ -31,8 +32,16 @@ The initial dashboard was faithfully verified against the concept, with no mater
 
 Verified console authentication, TPM setup, local demo enrollment and TOTP sign-in, subsequent login check, creation of a demo-only Dot client grant, the generated connection instructions, protected console access, and mobile navigation. Desktop screenshots show a real local demo account and real audit events, never invented production accounts or metrics.
 
+## Live ChatGPT connection
+
+On October 5, 2026, installed the official Windows amd64 tunnel-client 0.0.15 after checking its release SHA-256. Provisioned a dedicated Relay tunnel associated with the target ChatGPT workspace and a dedicated runtime credential through secure key setup. The ignored `.env.local` file is restricted to the owner and SYSTEM; it is not committed.
+
+The official managed runtime reports a running process, healthy and ready. Its remote metadata fetch succeeded. ChatGPT created and connected **Relay Credential Broker** through that private tunnel and discovered exactly `list_accounts`, `ensure_login`, `read_account_page` and `create_account`. The installed app displays Connected. The only enrolled account and client permission are the non-production local demo; signup is disabled by the broker grant.
+
+FraudBot then completed a live test through the installed Relay connection: `list_accounts` found `relay-demo / business`, `ensure_login` returned `AUTHENTICATED` with `reused: false`, and `read_account_page` returned PLA and PETG filament availability. FraudBot acknowledged the workflow and the isolated-browser boundary. No real account was enrolled, created or changed, and no application was submitted in this test. The private installation and Dot screenshots remain local deliverables rather than repository screenshots.
+
 ## External checks still required
 
-No real Bitwarden machine account, authentication mailbox, supplier signup/reset adapter, OpenAI tunnel, live ChatGPT Dot, installed Windows service or machine reboot was configured during development. The code and setup path are included; live operation depends on the owner's account credentials, tunnel/workspace permissions, site adapter correctness and Windows service identity.
+No real Bitwarden machine account, authentication mailbox, supplier signup/reset adapter, installed Windows service or machine reboot was configured during development. The current installation runs the broker and managed tunnel without a boot service. The code and setup path are included; real account operation depends on the owner's account credentials, site adapter correctness and Windows service identity.
 
 The local runtime is configured with TPM protection and the non-production demo only. Runtime vault files and client tokens are excluded from the GitHub repository.

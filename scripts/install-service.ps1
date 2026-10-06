@@ -1,17 +1,24 @@
 #Requires -RunAsAdministrator
-param([PSCredential]$Credential, [string]$TunnelPath, [string]$TunnelProfile = 'relay')
+param([PSCredential]$Credential, [string]$TunnelPath, [string]$TunnelProfile = 'relay', [string]$TunnelProfileDir)
 $ErrorActionPreference = 'Stop'
 $relayRepo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $relayData = Join-Path $relayRepo 'data'
 if (!(Test-Path -LiteralPath (Join-Path $relayData 'vault.enc'))) { throw 'Complete Relay setup first, under the Windows account that will run this service.' }
 if (Get-Service -Name 'RelayCredentialBroker' -ErrorAction SilentlyContinue) { throw 'Relay is already installed. Stop it and use the existing service configuration.' }
+if ($TunnelPath) {
+    $TunnelPath = (Resolve-Path -LiteralPath $TunnelPath).Path
+    if (!(Test-Path -LiteralPath (Join-Path $relayData 'tunnel-runtime.dpapi'))) { throw 'Save the tunnel credential locally with scripts/save-tunnel-credential.ps1 before installing tunnel supervision.' }
+    if (!$TunnelProfileDir) { $TunnelProfileDir = Join-Path $relayData 'tunnel-profiles' }
+    $TunnelProfileDir = (Resolve-Path -LiteralPath $TunnelProfileDir).Path
+    if (!(Test-Path -LiteralPath (Join-Path $TunnelProfileDir ($TunnelProfile + '.yaml')))) { throw 'Initialize the tunnel profile before installing tunnel supervision.' }
+}
 if (!$Credential) { $Credential = Get-Credential -Message 'Use the SAME Windows account that completed Relay setup. A Windows account password is required; a Windows Hello PIN is not a service credential.' }
 $relayNode = (Get-Command node.exe -ErrorAction Stop).Source
 $relayHost = Join-Path $relayRepo 'dist\windows-service'
 & dotnet publish (Join-Path $relayRepo 'windows\Relay.Service\Relay.Service.csproj') -c Release -r win-x64 --self-contained true -o $relayHost
 if ($LASTEXITCODE -ne 0) { throw 'Windows service build failed.' }
 $relayConfig = Join-Path $relayData 'service.json'
-@{ nodePath=$relayNode; repoPath=$relayRepo; dataPath=$relayData; tunnelPath=$TunnelPath; tunnelProfile=$TunnelProfile } | ConvertTo-Json | Set-Content -LiteralPath $relayConfig -Encoding UTF8
+@{ nodePath=$relayNode; repoPath=$relayRepo; dataPath=$relayData; tunnelPath=$TunnelPath; tunnelProfile=$TunnelProfile; tunnelProfileDir=$TunnelProfileDir } | ConvertTo-Json | Set-Content -LiteralPath $relayConfig -Encoding UTF8
 $relayExecutable = Join-Path $relayHost 'Relay.Service.exe'
 $relayBinary = '"' + $relayExecutable + '" "' + $relayConfig + '"'
 New-Service -Name 'RelayCredentialBroker' -DisplayName 'Relay Credential Broker' -Description 'Private browser sign-in broker for ChatGPT Dots.' -BinaryPathName $relayBinary -StartupType Automatic -Credential $Credential | Out-Null

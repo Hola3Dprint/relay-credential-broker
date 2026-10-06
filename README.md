@@ -35,7 +35,7 @@ See [the Dot connection guide](docs/CHATGPT-DOTS.md). Relay includes:
 
 - MCP stdio and stateless Streamable HTTP transports.
 - A client grant restricted to selected accounts and operations, revocable immediately.
-- A preparation script for OpenAI Secure MCP Tunnel so the broker can remain private.
+- A preparation script and managed runtime runner for OpenAI Secure MCP Tunnel so the broker can remain private.
 - A portable skills plugin in `plugin/`, usable alongside the connected Relay MCP plugin.
 
 The supported path is **Dot → ChatGPT Relay plugin → Secure MCP Tunnel → scoped stdio bridge → local broker → website**. The broker does not transfer cookies to the Dot's native browser. Use `read_account_page` to work with permitted authenticated pages.
@@ -82,7 +82,7 @@ Start-Service RelayCredentialBroker
 
 The installer prompts locally for that Windows account's service credential. Windows SCM stores it, not source files. The account must have **Log on as a service** rights. A Windows Hello PIN is not a service password. You need the .NET 8 SDK to publish the service; the resulting host is self-contained. It starts the broker at boot and restarts after failure. It has been compiled locally; live service installation and reboot behavior need verification on the target service account.
 
-To supervise an already configured official tunnel-client too, save an existing tunnel runtime credential with `scripts/save-tunnel-credential.ps1`, then pass `-TunnelPath` and optionally `-TunnelProfile` to the installer. The runtime credential uses CurrentUser DPAPI, independently of the TPM-wrapped vault key. The service decrypts it only into the child environment. Do not change the service identity without re-enrollment or key migration. Windows login, disk-unlock policy, token revocation, hardware failure, and provider security checks can still affect availability.
+To supervise an already configured official tunnel-client too, save an existing tunnel runtime credential with `scripts/save-tunnel-credential.ps1`, then pass `-TunnelPath` and optionally `-TunnelProfile` and `-TunnelProfileDir` to the installer. The profile directory defaults to `data/tunnel-profiles`. The runtime credential uses CurrentUser DPAPI, independently of the TPM-wrapped vault key. The service decrypts it only into the child environment. Do not change the service identity without re-enrollment or key migration. Windows login, disk-unlock policy, token revocation, hardware failure, and provider security checks can still affect availability.
 
 ## Verification
 

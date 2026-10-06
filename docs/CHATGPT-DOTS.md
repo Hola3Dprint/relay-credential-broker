@@ -1,6 +1,6 @@
 # Connect Relay to a ChatGPT Dot
 
-Relay is an MCP-backed custom plugin. It supports a private connection using OpenAI Secure MCP Tunnel. Account/workspace availability and permissions are controlled by OpenAI. This repository does not claim a live Dot connection until the target account has been tested.
+Relay is an MCP-backed custom plugin. It supports a private connection using OpenAI Secure MCP Tunnel. Account/workspace availability and permissions are controlled by OpenAI. ChatGPT discovery and installation of the four-tool catalog were verified on the development machine; see the verification record for the scope of live checks.
 
 ## 1. Prepare the local broker
 
@@ -10,7 +10,7 @@ The broker must be running while the Dot uses it. Revoke a client in Relay Setti
 
 ## 2. Configure an official private tunnel
 
-In OpenAI Platform tunnel settings, create a tunnel associated with the target ChatGPT workspace. Install the official `tunnel-client` from the Platform download link or [its official releases](https://github.com/openai/tunnel-client/releases/latest). Use its documented credential setup for a runtime key with the required tunnel permissions. This step is external provisioning, not a credential the broker can invent.
+In OpenAI Platform tunnel settings, create a tunnel associated with the target ChatGPT workspace. Download the Windows amd64 official `tunnel-client` from the Platform download link or [its official releases](https://github.com/openai/tunnel-client/releases/latest), verify its published SHA-256, and extract it into `data/tools/tunnel-client/` (keep the accompanying files). Version 0.0.15 was tested. Provision a dedicated runtime key with the required tunnel permissions and save it through secure local credential setup in the ignored `.env.local` file as `OPENAI_API_KEY`. Restrict the file ACL to the owner and SYSTEM. Do not put the key in chat, source files, command arguments or the Git repository.
 
 From the Relay repository, run:
 
@@ -18,15 +18,30 @@ From the Relay repository, run:
 .\scripts\connect-dot.ps1 -ClientId '<client-id-from-Relay>' -TunnelId '<tunnel-id-from-Platform>'
 ```
 
-This helper validates IDs, writes protected-directory connection metadata, and prints exact `tunnel-client init`, `doctor` and `run` commands with absolute paths. It makes no OpenAI API calls and provisions no API key. Run the printed commands in the official client's authenticated shell. The stdio bridge reads its scoped token internally and never emits it over MCP.
+This helper validates IDs and writes protected-directory connection metadata. Quoted command paths use forward slashes because the official client's stdio parser otherwise strips Windows backslashes. It makes no OpenAI API calls and provisions no API key. The stdio bridge reads its scoped token internally and never emits it over MCP.
 
-Keep `tunnel-client run --profile relay` running. Use `tunnel-client doctor --profile relay --explain` to diagnose local health and workspace association. The tunnel makes outbound HTTPS requests; no inbound firewall rule or public broker listener is required. See the [official Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for current setup and permissions.
+Use the included local runner:
+
+```powershell
+node scripts/dot-runtime.mjs init     # Once; creates data/tunnel-profiles/relay.yaml
+node scripts/dot-runtime.mjs doctor
+node scripts/dot-runtime.mjs connect  # Starts the official managed background runtime
+node scripts/dot-runtime.mjs status
+# To stop the managed runtime:
+node scripts/dot-runtime.mjs stop
+```
+
+The runner loads the approved key only into the child environment as `CONTROL_PLANE_API_KEY`. The profile stores an environment-variable reference. It buffers and redacts diagnostic output and prints compact runtime status. Status and stop do not read the credential file. The official client stores its own managed-runtime metadata under its Windows state directory. Local `ready` does not alone prove a ChatGPT request succeeded; verify tool discovery and a real tool call.
+
+The tunnel makes outbound HTTPS requests; no inbound firewall rule or public broker listener is required. See the [official Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for current setup and permissions.
 
 For boot startup, the README describes the optional Windows service supervisor. Tunnel registration, runtime-key provisioning and service-account rights must be completed first.
 
+After explicitly approving the new encrypted destination `data/tunnel-runtime.dpapi`, `node scripts/dot-runtime.mjs save-service-key` can reuse the existing approved key without showing it. It saves a CurrentUser DPAPI copy for the service; it creates no new OpenAI key. Installation then requires an elevated local Windows credential prompt under the same account that enrolled the vault. Stop the manually running broker and managed tunnel before starting the installed service, so they do not compete for the same broker port and tunnel.
+
 ## 3. Add Relay in ChatGPT
 
-Open **ChatGPT Plugins → + → Add custom MCP server**. Name it Relay. Under Connection choose **Tunnel**, and select the available tunnel or enter its ID. Use the connection authentication setting permitted by your workspace: the tunnel-backed stdio path relies on tunnel/workspace access and the server-side scoped bridge, and does not publish an anonymous HTTP endpoint. Inspect the four tools before creating the plugin.
+Open **ChatGPT Plugins → Add → Create custom MCP server**. Name it **Relay Credential Broker** (the directory already has an unrelated app named Relay). Under Connection choose **Tunnel**, and select the available tunnel or enter its ID. For this stdio bridge choose **No authentication**: access relies on tunnel/workspace authentication and the internal scoped grant, with no public anonymous HTTP endpoint. Create the plugin and connect it. Inspect the four discovered tools on its app details page.
 
 Use the [official custom MCP guide](https://developers.openai.com/api/docs/guides/custom-mcp-server) and [connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt) if your UI differs. Enable Relay in the target Dot's permitted plugins. Choose the permitted action policy supported by your account. Sign-in/reset and signup are mutating tools; proactive read-only modes or host safeguards may restrict them.
 

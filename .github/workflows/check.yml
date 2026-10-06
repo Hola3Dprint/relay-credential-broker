@@ -14,6 +14,19 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - run: npm run check
+      - name: Validate local connection helpers
+        shell: pwsh
+        run: |
+          Get-ChildItem scripts -Filter '*.mjs' | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript helper validation failed." }
+          }
+          Get-ChildItem scripts -Filter '*.ps1' | ForEach-Object {
+            $relayTokens = $null
+            $relayErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$relayTokens, [ref]$relayErrors) | Out-Null
+            if ($relayErrors.Count) { throw "PowerShell helper validation failed: $($_.Name)" }
+          }
       - run: npm audit --audit-level=high
       - uses: actions/setup-dotnet@v4
         with:
