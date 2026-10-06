@@ -51,6 +51,14 @@ The owner subsequently requested Relay inside FraudBot's own cloud computer. Fra
 
 The managed cloud Chrome blocked `chrome://extensions/` under an HTTP/HTTPS-only navigation policy. Its supported browser API exposed no extension-install capability. No software, companion, vault credential or tunnel key was installed or transferred to that cloud computer. The broker's portable key mode alone cannot provide native autofill without a supported companion delivery path. The working Windows connection remains in place. See BROWSER-COMPANION.md for the environment distinction and current limitation.
 
+## Mac package verification
+
+The owner requested installation on their own Mac. Added a Mac setup/start launcher, a cross-platform non-secret connection preparation helper and a Unix binary/credential-permission path in the private tunnel runner. The Mac launcher uses the existing portable AES-GCM/scrypt vault mode with local hidden passphrase entry. It refuses copied Windows key protectors and an occupied broker port, handles startup cancellation and stops a tunnel started by its launch.
+
+The macOS job in [GitHub Actions run 37417111743](https://github.com/Hola3Dprint/relay-credential-broker/actions/runs/37417111743) passed for code commit `205c986`: the existing test suite, type checks, production build, helper syntax checks and Mac broker startup/restart verification. The smoke check reopened the same encrypted temporary vault, verified clean shutdown and checked that the public test-only unlock passphrase did not appear in launcher output. The first launcher check exposed a startup/shutdown race, which was fixed before this passing run. Windows local checks also passed all 36 tests and the build.
+
+The source-only Mac ZIP was checked for the Mac guide/launcher and absence of runtime data, dependencies and credential env files. The owner's actual Mac was not accessed or installed during this Windows session. Mac Chrome pairing, live Dot tunnel calls, private credential setup and real website fills still require verification on that Mac. Native Keychain/automatic reboot unlock is not implemented. See MAC.md for the target-machine setup.
+
 ## External checks still required
 
 Shared password setup, the default-email save, the generated-password option, Chrome pairing instructions and the existing client permission dialog were checked through the Codex in-app browser. The Browser plugin was not available; the available CUA browser controlled all UI interactions. Page identity, meaningful DOM content, absence of an error overlay, console error/warning logs and actual interactions passed. Checked desktop/default viewport and 390 × 844 mobile sizing. Fixed a mobile dialog-button overflow; final dialog scroll width equals client width. Temporary viewport sizing was reset. Screenshots are local outputs, not repository artifacts.
