@@ -24,6 +24,14 @@ Then issue the normal native request using fields actually visible on the websit
 
 After the native request returns, `private_signin_status({"requestId":"…"})` reports `ARMED`, `DELIVERED`, `FILLED`, or `BLOCKED`. These are fill states, not proof of website authentication. Verify the website through supported native browser observations. Respect a decline, an unavailable request, site errors and host approvals.
 
+## Automatic initiation and failure limit
+
+For an authorized task, FraudBot should check for an active website session first and initiate the supported Relay workflow when a fresh sign-in is needed. ChatGPT's native **Sign in** confirmation remains an owner action. [OpenAI's Dot controls guide](https://learn.chatgpt.com/docs/dots/controls) states that custom rules cannot remove required sign-in confirmations. A verified active website session can be reused until the website expires it; an automatic approval click is not part of Relay.
+
+FraudBot must persist a failure count per website/account in its notes, including across requests, tabs and delegated work. After two failed attempts, it must stop triggering all autofill or sign-in routes for that account until the owner explicitly authorizes another attempt. A definitively blocked fill or a rejected website sign-in counts once per complete attempt. Username/password fields and repeated status reads do not count as separate failures. A verified successful sign-in resets the count. Authorized fake probes and owner cancellations do not count, but a cancellation still requires a new owner request to retry. Resolve an unknown result safely before retrying, and stop sooner when native browser guidance requires it. Switching tools, tabs, tasks or identity-provider hosts must not evade the limit.
+
+This limit is managed by the agent, not a broker authentication lock: Relay knows whether it filled the form, while FraudBot observes whether the website accepted the sign-in.
+
 ## Scope
 
 This supports the observed web private form on `https://chatgpt.com/dots/<configured-id>` with standard visible native username/password controls. It validates the private form's privacy marker, dialog, destination address, accessible form name, field metadata and short-lived form nonce. Changed forms, stale routing and replay are rejected. Requests expire, older armed destinations are superseded, and grants are rechecked before delivery. The paired extension remains a trusted credential boundary.

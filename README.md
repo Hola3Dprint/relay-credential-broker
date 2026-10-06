@@ -48,6 +48,13 @@ fills the matching private form and leaves the final **Sign in** click to the
 owner. This requires a separate grant for the exact Dot chat, kept open in paired
 Chrome. See [private sign-in setup and verification](docs/PRIVATE-SIGNIN.md).
 
+For authorized tasks, FraudBot should reuse an active website session or initiate
+Relay when sign-in is needed. Its standing policy stops further autofill after
+two failed attempts for a website/account until the owner authorizes another
+attempt. The agent tracks that limit in its notes; Relay's fill status alone
+cannot determine whether a website accepted a login. ChatGPT's native Sign in
+confirmation remains an owner action.
+
 See [the Dot connection guide](docs/CHATGPT-DOTS.md). Relay includes:
 
 - MCP stdio and stateless Streamable HTTP transports.
