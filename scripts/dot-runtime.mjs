@@ -21,6 +21,7 @@ let key = "";
 const redact = (value) =>
   String(value)
     .replaceAll(key || "\0", "[REDACTED]")
+    .replaceAll(process.env.RELAY_PASSPHRASE || "\0", "[REDACTED]")
     .replace(/sk-[A-Za-z0-9_-]+/g, "[REDACTED]");
 
 async function execute(args, env) {
@@ -33,7 +34,13 @@ async function execute(args, env) {
           "v1.0",
           "powershell.exe",
         )
-      : join(repo, "data", "tools", "tunnel-client", "tunnel-client.exe");
+      : join(
+          repo,
+          "data",
+          "tools",
+          "tunnel-client",
+          process.platform === "win32" ? "tunnel-client.exe" : "tunnel-client",
+        );
   await lstat(binary);
   return await new Promise((done, reject) => {
     const child = spawn(binary, args, {
@@ -85,6 +92,8 @@ async function execute(args, env) {
 }
 
 try {
+  if (action === "save-service-key" && process.platform !== "win32")
+    throw new Error("The DPAPI service helper requires Windows.");
   const connection = JSON.parse(
     await readFile(join(repo, "data", "dot-connection.json"), "utf8"),
   );
@@ -101,8 +110,16 @@ try {
   const env = { ...process.env };
   if (!["status", "stop"].includes(action)) {
     const keyPath = join(repo, ".env.local");
-    if ((await lstat(keyPath)).isSymbolicLink())
+    const keyStat = await lstat(keyPath);
+    if (keyStat.isSymbolicLink())
       throw new Error("Refusing a linked credential file.");
+    if (
+      process.platform !== "win32" &&
+      ((keyStat.mode & 0o077) !== 0 || keyStat.uid !== process.getuid())
+    )
+      throw new Error(
+        "The credential file must be owner-only: chmod 600 .env.local.",
+      );
     key = parseEnv(await readFile(keyPath, "utf8")).OPENAI_API_KEY || "";
     if (!key)
       throw new Error(

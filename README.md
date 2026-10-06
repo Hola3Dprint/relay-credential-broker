@@ -1,6 +1,6 @@
 # Relay
 
-A private Windows credential broker for ChatGPT Dots and other MCP clients. Save one shared website password and default email once. FraudBot navigates each website, focuses its login field, and calls Relay's fill tool. A paired Chrome companion fills the field directly; the AI receives `FILLED` or `BLOCKED`, never the password. No company-specific adapter or enrollment is required for this workflow.
+A private desktop credential broker for ChatGPT Dots and other MCP clients. Save one shared website password and default email once. FraudBot navigates each website, focuses its login field, and calls Relay's fill tool. A paired Chrome companion fills the field directly; the AI receives `FILLED` or `BLOCKED`, never the password. No company-specific adapter or enrollment is required for this workflow.
 
 ![Relay dashboard after local demo sign-in](docs/dashboard.png)
 
@@ -28,6 +28,17 @@ The console runs at `http://127.0.0.1:4318`. `npm run console` opens an authenti
 Click **Start setup**, choose TPM or DPAPI, then **Try the local demo**. The demo is an explicitly local fixture with published test credentials, not a real connected supplier.
 
 For frontend development use `npm run dev`, and open `npm run console -- --dev`.
+
+## Run on your own Mac
+
+Use macOS 14+, Node.js 22+ and ordinary Chrome. From the source repository:
+
+```sh
+npm run setup:mac
+npm run start:mac
+```
+
+The Mac launcher prompts privately for the portable vault unlock passphrase and opens the local console. Create a fresh Mac vault, pair Chrome and configure a separate private Dot connection. See [the Mac setup guide](docs/MAC.md) for the full sequence and verification limits. Windows TPM/DPAPI vaults are not transferable. The managed Dot cloud browser still lacks a supported companion-install path.
 
 ## Use with ChatGPT Dots
 
@@ -101,7 +112,7 @@ npm audit --audit-level=high
 dotnet build windows/Relay.Service/Relay.Service.csproj -c Release
 ```
 
-Tests cover AES-GCM tampering, RFC 6238 vectors, real Chromium login, TOTP, encrypted persistence and session restoration, session invalidation, concurrent sign-in deduplication, pending password recovery, exact URL restrictions, human-verification blocks, DKIM filtering, console/client separation, MCP initialization, revocation and origin/Host checks. GitHub Actions runs these checks on Windows.
+Tests cover AES-GCM tampering, RFC 6238 vectors, real Chromium login, TOTP, encrypted persistence and session restoration, session invalidation, concurrent sign-in deduplication, pending password recovery, exact URL restrictions, human-verification blocks, DKIM filtering, console/client separation, MCP initialization, revocation and origin/Host checks. GitHub Actions runs these checks on Windows and macOS, with an additional Mac launcher startup/reopen check.
 
 Current limits and threat model: [SECURITY.md](docs/SECURITY.md). Functional and visual checks: [VERIFICATION.md](docs/VERIFICATION.md).
 

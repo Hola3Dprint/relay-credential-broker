@@ -36,3 +36,18 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - run: dotnet build windows/Relay.Service/Relay.Service.csproj -c Release
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run check
+      - name: Validate Mac helpers
+        run: |
+          for helper in scripts/*.mjs; do node --check "$helper"; done
+      - run: node scripts/verify-mac-startup.mjs

@@ -10,6 +10,8 @@
     "dev": "concurrently -k \"tsx watch src/server.ts\" \"vite --host 127.0.0.1\"",
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node dist/server/server.js",
+    "setup:mac": "node scripts/mac.mjs setup",
+    "start:mac": "node scripts/mac.mjs start",
     "console": "tsx src/console.ts",
     "mcp": "tsx src/mcp.ts",
     "test": "vitest run",

@@ -2,6 +2,8 @@
 
 Relay is an MCP-backed custom plugin. It supports a private connection using OpenAI Secure MCP Tunnel. Account/workspace availability and permissions are controlled by OpenAI. ChatGPT discovery and installation of the four-tool catalog were verified on the development machine; see the verification record for the scope of live checks.
 
+For your own Mac, use [MAC.md](MAC.md): its Node preparation helper and Mac launcher replace the Windows-specific commands below. The current catalog has seven tools, and native Chrome fills were verified through FraudBot on Windows.
+
 ## 1. Prepare the local broker
 
 Run the README setup and create a client under **Settings → ChatGPT Dots**. For shared native-browser autofill, save the shared credential, pair Chrome, and enable shared browser autofill; see [BROWSER-COMPANION.md](BROWSER-COMPANION.md). No company enrollment is needed for that workflow. Select accounts only for optional configured broker workflows. Leave signup disabled unless required. The client token is stored in the encrypted vault; copy the non-secret client ID.
