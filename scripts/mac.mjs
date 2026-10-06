@@ -83,21 +83,25 @@ async function checkPort() {
   });
 }
 
+async function stopDot() {
+  if (dotStarted) {
+    dotStarted = false;
+    await run(
+      process.execPath,
+      [join(repo, "scripts/dot-runtime.mjs"), "stop"],
+      env,
+    ).catch(() => {
+      process.stderr.write(
+        "Stop the Relay tunnel separately if it is still running.\n",
+      );
+    });
+  }
+}
+
 function stop() {
   if (stopping) return stopping;
   stopping = (async () => {
-    if (dotStarted) {
-      dotStarted = false;
-      await run(
-        process.execPath,
-        [join(repo, "scripts/dot-runtime.mjs"), "stop"],
-        env,
-      ).catch(() => {
-        process.stderr.write(
-          "Stop the Relay tunnel separately if it is still running.\n",
-        );
-      });
-    }
+    await stopDot();
     broker?.kill("SIGTERM");
   })();
   return stopping;
@@ -215,13 +219,22 @@ async function main() {
   if (!flags.includes("--no-console"))
     await run(process.execPath, [join(repo, "dist/server/console.js")], env);
   if (flags.includes("--with-dot")) {
-    for (const operation of ["init", "doctor", "connect"])
+    for (const operation of ["init", "doctor", "connect"]) {
+      if (stopping) break;
       await run(
         process.execPath,
         [join(repo, "scripts/dot-runtime.mjs"), operation],
         env,
       );
-    dotStarted = true;
+      if (operation === "connect") dotStarted = true;
+    }
+  }
+  if (stopping) {
+    // A connect command that finishes during cancellation still needs cleanup.
+    await stopDot();
+    await stopping;
+    await closed;
+    return;
   }
   console.log(
     "Relay is running on this Mac. Keep this terminal open; Control-C stops this launch.",
