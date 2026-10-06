@@ -26,6 +26,14 @@ export async function createApp(store: Store) {
   const app = express();
   const broker = new Broker(store);
   let demo: Awaited<ReturnType<typeof startDemo>> | undefined;
+  const enrolledDemo = store.state.accounts["relay-demo:business"];
+  if (
+    enrolledDemo?.site.login.url === "http://127.0.0.1:4320/login" &&
+    enrolledDemo.credential?.username === demoCredential.username &&
+    enrolledDemo.credential.password === demoCredential.password
+  ) {
+    demo = await startDemo();
+  }
   const failures = new Map<string, { count: number; until: number }>();
   app.disable("x-powered-by");
   app.use((req, res, next) => {

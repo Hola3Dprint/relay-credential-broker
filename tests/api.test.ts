@@ -25,7 +25,7 @@ beforeAll(async () => {
   await store.update((s) => {
     s.ready = true;
     s.accounts["relay-demo:business"] = {
-      site: demoSite(),
+      site: demoSite(4322),
       binding: { provider: "local" },
       credential: demoCredential,
     };

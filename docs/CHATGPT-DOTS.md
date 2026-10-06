@@ -42,7 +42,7 @@ The skills-only package deliberately contains no guessed connector ID or cloud-i
 
 Try: “Use Relay to sign into relay-demo with identity business, then read the allowed demo account page and tell me which filaments are available.”
 
-Expected path: `list_accounts` → `ensure_login` → `read_account_page`; expected page content lists PLA and PETG. Relay's activity shows the login result. The tool payload must contain no password, TOTP seed, recovery code or cookie. Test a revoked grant and a URL outside `taskPages`; both must be refused. Close and restart the broker, restart the fixture via **Try the local demo**, and repeat.
+Expected path: `list_accounts` → `ensure_login` → `read_account_page`; expected page content lists PLA and PETG. Relay's activity shows the login result. The tool payload must contain no password, TOTP seed, recovery code or cookie. Test a revoked grant and a URL outside `taskPages`; both must be refused. Close and restart the broker and repeat; the enrolled local fixture restarts automatically, and Relay renews its invalidated demo session.
 
 `AUTHENTICATED` applies to Relay's isolated browser. It does not log the Dot into its native browser. Relay currently supports visible page reading and explicitly configured account workflows, not arbitrary authenticated clicking, purchases, uploads or downloads. For those tasks, add narrowly scoped adapters and tools with appropriate permissions.
 
