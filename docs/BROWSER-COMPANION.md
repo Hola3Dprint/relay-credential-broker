@@ -2,6 +2,16 @@
 
 This workflow uses one saved website password and one default email. FraudBot chooses and navigates the website; Relay fills its focused login inputs. Company adapters are not used. The extension runs in the same desktop Chrome profile used by the Dot, not in a cloud browser.
 
+## FraudBot's cloud computer
+
+The successful live fill test used the owner's connected Windows Chrome. It did not install Relay inside the separate computer shown as **FraudBot's computer** in ChatGPT.
+
+On October 5, 2026, FraudBot inspected that cloud environment using read-only supported tools. It reported Debian 13.6 on x86_64, Node.js 24.19.0, npm 11.9.0, Python 3.12.14 and Git 2.52.0. These runtimes can support Relay's Node broker and portable passphrase key mode, but no cloud broker installation or local-listener test was performed. Windows TPM/DPAPI-protected vaults cannot simply be copied there.
+
+The actual managed cloud Chrome rejected `chrome://extensions/` under its HTTP/HTTPS-only navigation policy and exposed no supported extension-install capability. Relay's native fill path requires its companion in the target browser, so installing only the broker would not enable fills in that managed browser. Do not bypass this restriction through browser flags, profile edits or alternate control methods. Cloud service survival across environment restarts also remains unverified.
+
+The current supported Relay path is the connected desktop Chrome profile with the paired companion and broker on the same Windows machine. ChatGPT's separate private cloud sign-in flow is described in the [official Dot computer guide](https://learn.chatgpt.com/docs/dots/computers-and-apps); the current Relay plugin has no integration with that private sign-in mechanism.
+
 ## One-time installation
 
 1. Open `chrome://extensions` in the Chrome profile FraudBot uses. Enable Developer mode, click **Load unpacked**, and select this repository's `browser-companion` directory. This locally built extension needs access to HTTPS pages to find the focused login input, and to `http://127.0.0.1:4318` to contact Relay. Review those permissions before installing.
