@@ -11,6 +11,8 @@ Keep a persistent failure count per website/account in the Dot's notes, shared a
 
 For optional configured broker accounts, list enrolled accounts before choosing an identifier.
 
+Companion 0.2.2 automatically notifies the owner after a matching private form is filled: an Approval needed notice, a tab-title indicator and a toolbar badge. Its Show request control opens the uniquely matched private request; the owner performs the final confirmation. This notification is local to paired Chrome. Do not instruct another tool or script to click an arbitrary large white rectangle or automate the owner confirmation.
+
 For cloud-browser sign-in through ChatGPT's private form, call `prepare_private_signin` with the current sign-in page's exact HTTPS origin BEFORE awaiting the native `browserAuth.request`. Relay needs separate private-form access for the owner-configured Dot chat, open in paired desktop Chrome. An ARMED result contains a non-secret requestId and expires in five minutes. The local companion opens and fills only the matching native private form; the owner confirms Sign in. Never substitute ChatGPT's origin for the actual sign-in destination. Respect the native request's decline/unavailable result. After it returns, `private_signin_status` can report the fill state. Verify website authentication separately. Use `demo:true` only for an expressly authorized non-submitting test with public fake credentials, and cancel that native request without saving or submitting it. Do not use this native sign-in capability for signup or changing credentials.
 
 1. Call `list_accounts` and select the account and identity that fit the user's task.

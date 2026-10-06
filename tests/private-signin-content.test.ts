@@ -8,6 +8,8 @@ const code = readFileSync(
 );
 function fixture() {
   let listener: Function;
+  const intervals: Function[] = [];
+  const sent: Record<string, unknown>[] = [];
   class Element {
     isConnected = true;
     disabled = false;
@@ -17,6 +19,10 @@ function fixture() {
     children: Record<string, Element[]> = {};
     dialog?: Element;
     clicks = 0;
+    scrolls = 0;
+    nodes: Element[] = [];
+    shadow?: Element;
+    handlers = new Map<string, Function>();
     getClientRects() {
       return this.isConnected ? [{}] : [];
     }
@@ -31,6 +37,26 @@ function fixture() {
     }
     click() {
       this.clicks++;
+      this.handlers.get("click")?.();
+    }
+    setAttribute(key: string, value: string) {
+      this.attributes[key] = value;
+    }
+    addEventListener(name: string, fn: Function) {
+      this.handlers.set(name, fn);
+    }
+    append(...nodes: Element[]) {
+      this.nodes.push(...nodes);
+    }
+    attachShadow() {
+      this.shadow = new Element();
+      return this.shadow;
+    }
+    remove() {
+      this.isConnected = false;
+    }
+    scrollIntoView() {
+      this.scrolls++;
     }
   }
   class Input extends Element {
@@ -86,6 +112,15 @@ function fixture() {
   const button = new Element();
   button.textContent = "Sign in to employer.example";
   const document = new Element();
+  const body = new Element();
+  Object.assign(document, {
+    title: "FraudBot",
+    body,
+    createElement: () => new Element(),
+  });
+  const approve = new Element();
+  approve.textContent = "Sign in";
+  form.children.button = [approve];
   document.children['form[data-dd-privacy="mask"]'] = [form];
   document.children['button[aria-haspopup="dialog"]'] = [button];
   new Script(code).runInContext(
@@ -109,7 +144,9 @@ function fixture() {
       chrome: {
         runtime: {
           id: "fixture-extension",
-          sendMessage: async () => {},
+          sendMessage: async (message: Record<string, unknown>) => {
+            sent.push(message);
+          },
           onMessage: {
             addListener: (fn: Function) => {
               listener = fn;
@@ -117,7 +154,10 @@ function fixture() {
           },
         },
       },
-      setInterval: () => 0,
+      setInterval: (fn: Function) => {
+        intervals.push(fn);
+        return 0;
+      },
     }),
   );
   function message(
@@ -142,6 +182,17 @@ function fixture() {
   });
   const fill = (data: ReturnType<typeof delivery>) =>
     message("relay-private-fill", { delivery: data });
+  const descendants = (element: Element): Element[] => [
+    element,
+    ...element.nodes.flatMap(descendants),
+    ...(element.shadow ? descendants(element.shadow) : []),
+  ];
+  const notice = () =>
+    body.nodes.find(
+      (element) =>
+        element.isConnected &&
+        element.getAttribute("data-relay-approval-notice") !== null,
+    );
   return {
     Element,
     job,
@@ -157,9 +208,91 @@ function fixture() {
     delivery,
     fill,
     message,
+    sent,
+    approve,
+    notice,
+    descendants,
+    tick: () => intervals.forEach((fn) => fn()),
   };
 }
 describe("ChatGPT private-form companion", () => {
+  it("notifies the owner after filling, without exposing values or clicking approval", () => {
+    const f = fixture(),
+      inspected = f.inspect();
+    expect(f.notice()).toBeUndefined();
+    expect(f.fill(f.delivery(inspected.nonce)).status).toBe("FILLED");
+    const notice = f.notice()!;
+    expect(notice).toBeDefined();
+    const nodes = f.descendants(notice);
+    expect(nodes.some((node) => node.getAttribute("role") === "alert")).toBe(
+      true,
+    );
+    const text = nodes.map((node) => node.textContent).join(" ");
+    expect(text).toContain("Approval needed");
+    expect(text).toContain("employer.example");
+    expect(text).not.toContain("Fixture-only-secret!");
+    expect(text).not.toContain("fixture@relay.test");
+    expect(JSON.stringify(f.sent)).not.toContain("Fixture-only-secret!");
+    expect(f.sent).toContainEqual({
+      type: "relay-private-notice",
+      origin: "https://chatgpt.com",
+      active: true,
+      websiteOrigin: f.origin,
+    });
+    expect((f.document as any).title).toBe("Approval needed · FraudBot");
+    expect(f.approve.clicks).toBe(0);
+    expect(f.button.clicks).toBe(0);
+    nodes.find((node) => node.textContent === "Show request")!.click();
+    expect(f.form.scrolls).toBe(1);
+    expect(f.approve.clicks).toBe(0);
+  });
+  it("opens only the matching collapsed request and dismisses the notice without approval", () => {
+    const f = fixture(),
+      inspected = f.inspect();
+    f.fill(f.delivery(inspected.nonce));
+    const nodes = f.descendants(f.notice()!);
+    f.document.children['form[data-dd-privacy="mask"]'] = [];
+    nodes.find((node) => node.textContent === "Show request")!.click();
+    expect(f.button.clicks).toBe(1);
+    expect(f.approve.clicks).toBe(0);
+    nodes.find((node) => node.textContent === "Dismiss notice")!.click();
+    expect(f.notice()).toBeUndefined();
+    expect((f.document as any).title).toBe("FraudBot");
+    expect(f.sent.at(-1)).toEqual({
+      type: "relay-private-notice",
+      origin: "https://chatgpt.com",
+      active: false,
+    });
+    expect(f.approve.clicks).toBe(0);
+  });
+  it("clears expired/closed notices and never notifies for a blocked fill", () => {
+    const expired = fixture(),
+      inspected = expired.inspect();
+    expired.fill(expired.delivery(inspected.nonce));
+    expired.job.expires = Date.now() - 1;
+    // The notification keeps its own expiry metadata; advance the clock instead.
+    const oldNow = Date.now;
+    Date.now = () => oldNow() + 300001;
+    try {
+      expired.tick();
+    } finally {
+      Date.now = oldNow;
+    }
+    expect(expired.notice()).toBeUndefined();
+    expect((expired.document as any).title).toBe("FraudBot");
+    const closed = fixture(),
+      ready = closed.inspect();
+    closed.fill(closed.delivery(ready.nonce));
+    closed.document.children['form[data-dd-privacy="mask"]'] = [];
+    closed.button.disabled = true;
+    closed.tick();
+    expect(closed.notice()).toBeUndefined();
+    const blocked = fixture();
+    blocked.inspect();
+    expect(blocked.fill(blocked.delivery(randomUUID())).status).toBe("BLOCKED");
+    expect(blocked.notice()).toBeUndefined();
+    expect(blocked.sent.some((message) => message.active === true)).toBe(false);
+  });
   it("counts the native nested address once and rejects separate duplicate markers", () => {
     const nested = fixture(),
       wrapper = new nested.Element();
