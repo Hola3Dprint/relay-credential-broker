@@ -143,6 +143,7 @@ function fixture() {
   const fill = (data: ReturnType<typeof delivery>) =>
     message("relay-private-fill", { delivery: data });
   return {
+    Element,
     job,
     origin,
     location,
@@ -159,6 +160,32 @@ function fixture() {
   };
 }
 describe("ChatGPT private-form companion", () => {
+  it("counts the native nested address once and rejects separate duplicate markers", () => {
+    const nested = fixture(),
+      wrapper = new nested.Element();
+    wrapper.textContent = nested.origin;
+    wrapper.children.span = [nested.span];
+    nested.form.children.span = [wrapper, nested.span];
+    const inspected = nested.inspect();
+    expect(inspected.status).toBe("READY");
+    expect(nested.fill(nested.delivery(inspected.nonce)).status).toBe("FILLED");
+
+    const duplicate = fixture(),
+      other = new duplicate.Element();
+    other.textContent = duplicate.origin;
+    duplicate.form.children.span.push(other);
+    expect(duplicate.inspect().status).not.toBe("READY");
+    expect(duplicate.password.value).toBe("");
+
+    const changed = fixture(),
+      before = changed.inspect(),
+      added = new changed.Element();
+    added.textContent = changed.origin;
+    changed.form.children.span.push(added);
+    expect(changed.fill(changed.delivery(before.nonce)).status).toBe("BLOCKED");
+    expect(changed.username.value).toBe("");
+    expect(changed.password.value).toBe("");
+  });
   it("supports native email/password fields when the website supplied no autocomplete", () => {
     const f = fixture();
     f.username.type = "email";

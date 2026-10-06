@@ -40,10 +40,18 @@
           ) &&
           form.getAttribute("aria-label") ===
             `Sign in to ${new URL(job.origin).host}` &&
+          // ChatGPT nests the displayed address in a wrapper span. Count
+          // its visible leaf marker once, while rejecting separate duplicates.
           Array.from(form.querySelectorAll("span"))
             .filter(visible)
-            .filter((span) => span.textContent.trim() === job.origin).length ===
-            1
+            .filter((span) => span.textContent.trim() === job.origin)
+            .filter(
+              (span) =>
+                !Array.from(span.querySelectorAll("span")).some(
+                  (child) =>
+                    visible(child) && child.textContent.trim() === job.origin,
+                ),
+            ).length === 1
         );
       });
     if (forms.length !== 1) return;

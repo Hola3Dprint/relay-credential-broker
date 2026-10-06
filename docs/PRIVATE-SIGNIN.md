@@ -5,7 +5,7 @@ FraudBot can trigger local autofill before it requests cloud-browser sign-in. Re
 ## Setup
 
 1. Keep Relay and its private tunnel running on the owner's computer.
-2. Update/reload **Relay Private Autofill** to version 0.2.0 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
+2. Update/reload **Relay Private Autofill** to version 0.2.1 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
 3. In Relay's **Connected clients → Edit access**, enable browser autofill and enter the exact Dot address in **Dot address for private sign-in**. This separately enables private-form fill access for that Dot. Leave the address blank to disable it.
 4. Refresh the connected ChatGPT plugin's catalog. The nine tools include `prepare_private_signin` and `private_signin_status`.
 5. Keep the configured Dot chat open in paired desktop Chrome. The local computer/browser must be online.
