@@ -159,6 +159,31 @@ function fixture() {
   };
 }
 describe("ChatGPT private-form companion", () => {
+  it("supports native email/password fields when the website supplied no autocomplete", () => {
+    const f = fixture();
+    f.username.type = "email";
+    f.username.autocomplete = "";
+    f.username.attributes["aria-label"] = "Email address";
+    f.password.autocomplete = "";
+    f.password.attributes["aria-label"] = "Account password";
+    const inspected = f.inspect();
+    expect(inspected.status).toBe("READY");
+    expect(f.fill(f.delivery(inspected.nonce)).status).toBe("FILLED");
+  });
+  it("preserves values the owner supplies before inspection or during delivery", () => {
+    const entered = fixture();
+    entered.password.value = "Owner-entered-fixture-secret!";
+    expect(entered.inspect().status).toBe("WAITING_FOR_EMPTY_FORM");
+    expect(entered.password.value).toBe("Owner-entered-fixture-secret!");
+    const racing = fixture(),
+      inspected = racing.inspect();
+    racing.username.value = "owner-choice@relay.test";
+    expect(racing.fill(racing.delivery(inspected.nonce)).status).toBe(
+      "BLOCKED",
+    );
+    expect(racing.username.value).toBe("owner-choice@relay.test");
+    expect(racing.password.value).toBe("");
+  });
   it("fills only the matching private form, never submits, and returns no values", () => {
     const f = fixture(),
       inspected = f.inspect();

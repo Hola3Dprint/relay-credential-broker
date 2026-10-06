@@ -61,14 +61,15 @@
       if (
         input.name.startsWith("browser-auth-field-") &&
         input.type === "password" &&
-        input.autocomplete === "current-password" &&
-        /^password$/i.test(label)
+        ["", "current-password"].includes(input.autocomplete) &&
+        /\bpassword\b/i.test(label) &&
+        !/new|confirm|verify|old|change/i.test(label)
       )
         fields.push({ field: "password", input });
       else if (
         input.name.startsWith("browser-auth-field-") &&
         ["text", "email"].includes(input.type) &&
-        ["username", "email"].includes(input.autocomplete) &&
+        ["", "username", "email"].includes(input.autocomplete) &&
         /email|username|user name/i.test(label)
       )
         fields.push({ field: "username", input });
@@ -105,6 +106,10 @@
           }
           return reply({ status: "WAITING_FOR_PRIVATE_FORM" });
         }
+        // Do not overwrite credentials supplied by the owner or a password manager.
+        // Values stay in the extension and are never included in metadata.
+        if (current.fields.some((f) => f.input.value !== ""))
+          return reply({ status: "WAITING_FOR_EMPTY_FORM" });
         if (
           !prepared ||
           prepared.job.id !== job.id ||
@@ -137,6 +142,7 @@
           c.expires !== prepared.job.expires ||
           c.fields.length !== prepared.fields.length ||
           current.form !== prepared.form ||
+          current.fields.some((f) => f.input.value !== "") ||
           current.fields.length !== prepared.fields.length ||
           current.fields.some(
             (f, i) => prepared.fields[i]?.input !== f.input,
