@@ -1,13 +1,22 @@
 (() => {
   // The Dot is paused during native sign-in. Tick from its local open chat,
   // even before a credential input exists or gains focus.
+  let previousTick;
   const tick = () =>
     chrome.runtime
       .sendMessage({ type: "relay-private-tick", origin: location.origin })
+      .then((result) => {
+        const summary = JSON.stringify(result);
+        if (summary !== previousTick) {
+          previousTick = summary;
+          console.info("Relay private tick " + summary);
+        }
+      })
       .catch(() => {});
   setInterval(tick, 1000);
   tick();
   const opened = new Set();
+  const observed = new Set();
   let prepared;
   const visible = (e) =>
     e?.isConnected &&
@@ -93,6 +102,19 @@
         const job = message.job;
         if (!routed(job)) return reply({ status: "BLOCKED" });
         const current = formFor(job);
+        if (!observed.has(job.id)) {
+          observed.add(job.id);
+          console.info(
+            "Relay private inspection " +
+              JSON.stringify({
+                routed: routed(job),
+                formMatched: Boolean(current),
+                dialogTriggers: document.querySelectorAll(
+                  'button[aria-haspopup="dialog"]',
+                ).length,
+              }),
+          );
+        }
         if (!current) {
           // Native sign-in requests start as a collapsed card in the Dot chat.
           // Open only a unique native dialog trigger for the armed destination.

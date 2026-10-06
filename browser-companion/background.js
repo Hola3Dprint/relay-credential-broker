@@ -1,5 +1,6 @@
 const BROKER = "http://127.0.0.1:4318/api/browser";
 let polling = false;
+let privateDiagnostic = {};
 async function request(path, body) {
   const { token } = await chrome.storage.local.get("token");
   if (!token) throw new Error("NOT_PAIRED");
@@ -62,7 +63,18 @@ async function pollPrivateSignIn() {
         !url.hash
       );
     });
-    if (tabs.length !== 1) continue;
+    privateDiagnostic = { matchingTabs: tabs.length };
+    if (tabs.length !== 1) {
+      const active = await chrome.tabs.query({
+        active: true,
+        lastFocusedWindow: true,
+      });
+      const candidates = tabs.filter((tab) =>
+        active.some((current) => current.id === tab.id),
+      );
+      if (candidates.length !== 1) continue;
+      tabs.splice(0, tabs.length, candidates[0]);
+    }
     const tabId = tabs[0].id;
     let inspected;
     try {
@@ -74,6 +86,7 @@ async function pollPrivateSignIn() {
     } catch {
       continue;
     }
+    privateDiagnostic.inspection = inspected?.status || "NO_REPLY";
     if (inspected?.status !== "READY" || inspected.origin !== job.origin)
       continue;
     const delivery = await request("/private-delivery", {
@@ -162,7 +175,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     ) {
       await poll();
     } else return reply({ status: "BLOCKED" });
-    reply({ status: "OK" });
+    reply({ status: "OK", ...privateDiagnostic });
   })().catch(() => reply({ status: "BLOCKED" }));
   return true;
 });

@@ -5,10 +5,10 @@ FraudBot can trigger local autofill before it requests cloud-browser sign-in. Re
 ## Setup
 
 1. Keep Relay and its private tunnel running on the owner's computer.
-2. Update/reload **Relay Private Autofill** to version 0.2.3 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
+2. Update/reload **Relay Private Autofill** to version 0.2.6 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
 3. In Relay's **Connected clients → Edit access**, enable browser autofill and enter the exact Dot address in **Dot address for private sign-in**. This separately enables private-form fill access for that Dot. Leave the address blank to disable it.
 4. Refresh the connected ChatGPT plugin's catalog. The nine tools include `prepare_private_signin` and `private_signin_status`.
-5. Keep the configured Dot chat open in paired desktop Chrome. The local computer/browser must be online.
+5. Keep the configured Dot chat open in paired desktop Chrome. When multiple matching tabs exist, keep the intended Dot tab selected in the focused Chrome window. The local computer/browser must be online.
 
 ## Dot workflow
 
@@ -20,7 +20,7 @@ Before awaiting the supported native `browserAuth.request`, call `prepare_privat
 
 Use the current sign-in page's exact HTTPS origin, including any legitimate identity-provider host. An `ARMED` result starts a five-minute, single-use intent and returns a non-secret `requestId`.
 
-Then issue the normal native request using fields actually visible on the website. The companion opens only a unique matching native sign-in card in the configured Dot tab. It verifies the displayed website address and the actual private form before filling username/password fields. The owner confirms **Sign in**. The companion never clicks Sign in, Save to Passwords, takeover, or a sign-in method choice. The native request remains pending until the owner acts.
+Prepare immediately before the native request; a new ARMED job supersedes older ARMED jobs, so waiting for an old job to expire is unnecessary. This works for the exact origin of any requested site, without a GitHub-specific rule. Then issue the normal native request using fields actually visible on the website. The companion opens only a unique matching native sign-in card in the configured Dot tab. It verifies the displayed website address and the actual private form before filling username/password fields. The owner confirms **Sign in**. The companion never clicks Sign in, Save to Passwords, takeover, or a sign-in method choice. The native request remains pending until the owner acts.
 
 After the native request returns, `private_signin_status({"requestId":"…"})` reports `ARMED`, `DELIVERED`, `FILLED`, or `BLOCKED`. These are fill states, not proof of website authentication. Verify the website through supported native browser observations. Respect a decline, an unavailable request, site errors and host approvals.
 
