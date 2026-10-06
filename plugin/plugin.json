@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "relay",
+  "version": "0.1.0",
+  "description": "Use privately enrolled accounts through the Relay credential broker.",
+  "author": { "name": "Hola3Dprint" },
+  "keywords": ["authentication", "dots", "credentials"]
+}

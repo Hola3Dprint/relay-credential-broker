@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>Relay.Service</AssemblyName></PropertyGroup>
+  <ItemGroup><PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" /><PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" /></ItemGroup>
+</Project>

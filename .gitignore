@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+test-results/
+playwright-report/
+*.enc
+*.key
+*.code
+.DS_Store
+**/bin/
+**/obj/
