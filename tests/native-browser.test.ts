@@ -67,6 +67,37 @@ function focus(
   return nonce;
 }
 describe("private native browser autofill", () => {
+  it("distinguishes a saved credential from a paired, online browser and matching focus", async () => {
+    await browser.revokeCompanion(companion);
+    const fill = () =>
+      browser.fill(
+        client,
+        undefined,
+        "business",
+        "username",
+        undefined,
+        origin,
+      );
+    expect(browser.readiness()).toEqual({
+      status: "BLOCKED",
+      reason: "BROWSER_COMPANION_NOT_PAIRED",
+    });
+    expect(await fill()).toEqual(browser.readiness());
+    const paired = await browser.pair(browser.ticket().code);
+    expect(browser.readiness()).toEqual({
+      status: "BLOCKED",
+      reason: "BROWSER_COMPANION_OFFLINE",
+    });
+    expect(await fill()).toEqual(browser.readiness());
+    companion = browser.authenticate(paired.token)!;
+    expect(browser.readiness()).toEqual({ status: "READY_TO_FILL" });
+    expect(await fill()).toHaveProperty("reason", "NO_MATCHING_FOCUSED_FIELD");
+    focus(1, "username");
+    const result = fill();
+    const delivery = await browser.poll(companion);
+    browser.complete(companion, delivery.command!.id, "FILLED");
+    expect(await result).toHaveProperty("status", "FILLED");
+  });
   it("uses one password for different HTTPS sites and returns no secret to the Dot", async () => {
     for (const targetOrigin of [origin, "https://another-company.example"]) {
       focus(1, "password", targetOrigin);

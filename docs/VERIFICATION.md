@@ -4,6 +4,8 @@ Verified locally on Windows on October 5, 2026. This record distinguishes implem
 
 ## Functional checks
 
+The October 5 focus investigation found that the observed native email input was recognized correctly but no browser companion was paired. Fixed `list_accounts` and fill calls to distinguish missing pairing, offline pairing and unmatched focus. The updated 36-test suite, type checks and build passed. The live official MCP stdio client now reports `credentialSaved: true` and `BLOCKED: BROWSER_COMPANION_NOT_PAIRED` for both shared readiness and a fixture-origin username fill. The shared password is saved locally; companion pairing and actual field filling remain unverified.
+
 - TypeScript type checks and production React/Vite build passed.
 - 34 tests passed across encryption, RFC 6238 TOTP, exact origins and task URLs, email code/link filtering and DKIM trust, real Chromium authentication, encrypted session restoration, expired-session renewal, modal sign-in, concurrent login deduplication, pending-reset fallback, human-verification blocking, serialized storage, admin/client separation, MCP HTTP initialization and tool calls, grant editing and immediate revocation. New tests cover one shared credential across origins, companion-only delivery, no secret in Dot responses, stale/ambiguous focus, pairing-code replay, revoked grants, signup approval and the shipped content script's input setter and rejection rules.
 - A separate official MCP stdio client discovered all seven tools, listed its scoped demo account, ensured password/TOTP sign-in, and read the authenticated catalog page. Run `node scripts/verify-mcp.mjs --client-id <your-demo-client-id>` to reproduce while the broker and demo fixture are running.

@@ -103,9 +103,24 @@ function fixture() {
     );
     return result;
   }
-  return { input, Input, document, sent, fill };
+  return { input, Input, document, sent, fill, report: events.get("focusin")! };
 }
 describe("Chrome companion content isolation", () => {
+  it("recognizes a focused text input with email autocomplete and an ordinary label", () => {
+    const f = fixture();
+    f.input.type = "text";
+    f.input.autocomplete = "email";
+    f.input.name = "";
+    f.input.labels = [{ textContent: "Email Address*" }];
+    f.report();
+    expect(f.sent.at(-1)).toMatchObject({
+      type: "relay-focus",
+      kind: "username",
+    });
+    expect(f.fill({ field: "username", value: "fixture@relay.test" })).toEqual({
+      status: "FILLED",
+    });
+  });
   it("fills through the native input setter and sends only metadata and acknowledgement", () => {
     const f = fixture();
     const result = f.fill();

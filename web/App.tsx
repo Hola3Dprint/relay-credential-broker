@@ -127,7 +127,7 @@ export function App() {
       : "Save or generate your shared website password once",
     (state.browserCompanions?.length ?? 0)
       ? `${state.browserCompanions!.length} browser paired`
-      : "Pair the Chrome profile FraudBot uses",
+      : "No browser paired · autofill unavailable",
     state.ready
       ? `${state.protection.toUpperCase()} · configured`
       : "Complete one-time setup",

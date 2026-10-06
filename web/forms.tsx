@@ -663,6 +663,11 @@ export function BrowserForm({ state, onDone }: Done & { state: State }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
+      {!state.browserCompanions?.length && (
+        <p role="status">
+          No Chrome companion is paired. Autofill is unavailable.
+        </p>
+      )}
       <p className="subtle">
         Install Relay Private Autofill in the Chrome profile FraudBot uses. Pair
         it once, then FraudBot can focus a login field and ask Relay to fill it.

@@ -128,10 +128,11 @@ export async function createApp(store: Store) {
               {
                 mode: "shared",
                 name: "Shared browser credential",
-                status: "READY_TO_FILL",
+                credentialSaved: true,
+                ...native.readiness(),
                 taskPages: [],
                 instructions:
-                  "Focus the native browser field and call fill_saved_password or fill_saved_username with the current exact HTTPS origin. Omit site.",
+                  "Pair Relay Private Autofill in the desktop Chrome profile first. READY_TO_FILL means a paired browser is online; focus the native browser field before calling fill_saved_password or fill_saved_username with the current exact HTTPS origin. Omit site.",
               },
             ]
           : []),

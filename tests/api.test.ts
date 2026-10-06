@@ -189,6 +189,40 @@ describe("admin and client separation", () => {
     );
     expect(saved.status).toBe(200);
     expect(await saved.json()).toEqual({ configured: true });
+    const autofillToken = "scoped-autofill-fixture-token-00000000000000";
+    await store.update((s) => {
+      s.clients.push({
+        id: "autofill-readiness",
+        name: "Fixture autofill client",
+        tokenHash: hashToken(autofillToken),
+        accounts: [],
+        operations: [
+          "list_accounts",
+          "fill_saved_username",
+          "fill_saved_password",
+        ],
+        createdAt: new Date().toISOString(),
+      });
+    });
+    const readiness = async () =>
+      (
+        await (
+          await request("/api/agent/list_accounts", autofillToken, {})
+        ).json()
+      )[0];
+    expect(await readiness()).toMatchObject({
+      mode: "shared",
+      credentialSaved: true,
+      status: "BLOCKED",
+      reason: "BROWSER_COMPANION_NOT_PAIRED",
+    });
+    expect(
+      await (
+        await request("/api/agent/fill_saved_username", autofillToken, {
+          origin: "https://example.com",
+        })
+      ).json(),
+    ).toEqual({ status: "BLOCKED", reason: "BROWSER_COMPANION_NOT_PAIRED" });
     const metadata = await (
       await request("/api/state", store.state.adminToken)
     ).text();
@@ -203,11 +237,30 @@ describe("admin and client separation", () => {
     const pair = await (
       await request("/api/browser/pair", undefined, { code: ticket.code })
     ).json();
+    expect(await readiness()).toMatchObject({
+      status: "BLOCKED",
+      reason: "BROWSER_COMPANION_OFFLINE",
+    });
     expect((await request("/api/state", pair.token)).status).toBe(401);
     expect(
       (await request("/api/agent/list_accounts", pair.token, {})).status,
     ).toBe(401);
     expect((await request("/api/browser/status", pair.token)).status).toBe(200);
+    expect(await readiness()).toMatchObject({
+      mode: "shared",
+      status: "READY_TO_FILL",
+    });
+    expect(JSON.stringify(await readiness())).not.toContain(config.password);
+    expect(
+      await (
+        await request("/api/agent/fill_saved_username", autofillToken, {
+          origin: "https://example.com",
+        })
+      ).json(),
+    ).toHaveProperty("reason", "NO_MATCHING_FOCUSED_FIELD");
+    await store.update((s) => {
+      s.clients = s.clients.filter((c) => c.id !== "autofill-readiness");
+    });
     expect(
       (await request("/api/browser/pair", undefined, { code: ticket.code }))
         .status,

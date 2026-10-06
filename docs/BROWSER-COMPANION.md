@@ -35,4 +35,6 @@ Revoke the browser in Relay's Chrome companion dialog or remove the extension to
 
 ## Verification status
 
+`list_accounts` reports the saved shared credential separately from browser readiness. With no paired extension it returns `BLOCKED: BROWSER_COMPANION_NOT_PAIRED`; with only offline paired extensions it returns `BLOCKED: BROWSER_COMPANION_OFFLINE`. `READY_TO_FILL` means a paired browser has contacted Relay recently. The requested input still needs matching, current focus; otherwise a fill returns `NO_MATCHING_FOCUSED_FIELD`. Codex or ChatGPT browser control access is a separate connection from Relay Private Autofill pairing.
+
 Automated protocol tests exercise paired-only delivery, no secret in MCP results, origin/focus checks, pairing-code replay, revocation and signup grants. Tests execute the shipped content script against controlled input fixtures to verify its setter and rejection rules. Live Chrome installation, browser pairing and a real Dot-to-field fill must also be verified before claiming end-to-end completion.

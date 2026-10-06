@@ -87,6 +87,20 @@ export class NativeBrowser {
       }),
     );
   }
+  readiness() {
+    const companions = this.status();
+    if (!companions.length)
+      return {
+        status: "BLOCKED" as const,
+        reason: "BROWSER_COMPANION_NOT_PAIRED",
+      };
+    if (!companions.some((c) => c.online))
+      return {
+        status: "BLOCKED" as const,
+        reason: "BROWSER_COMPANION_OFFLINE",
+      };
+    return { status: "READY_TO_FILL" as const };
+  }
   focus(companion: string, input: z.infer<typeof focusSchema>) {
     this.focuses.set(`${companion}:${input.tabId}:${input.frameId}`, {
       ...input,
@@ -146,6 +160,8 @@ export class NativeBrowser {
         (key === "shared" && !this.store.state.sharedSignup))
     )
       throw new Error("SIGNUP_NOT_GRANTED");
+    const readiness = this.readiness();
+    if (readiness.status === "BLOCKED") return readiness;
     const candidates = [...this.focuses.values()].filter(
       (f) =>
         f.origin === origin &&
