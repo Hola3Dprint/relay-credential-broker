@@ -48,10 +48,6 @@ fills the matching private form and leaves the final **Sign in** click to the
 owner. This requires a separate grant for the exact Dot chat, kept open in paired
 Chrome. See [private sign-in setup and verification](docs/PRIVATE-SIGNIN.md).
 
-Companion 0.2.2 shows an **Approval needed** notice, tab-title indicator and toolbar
-badge after filling the private request. **Show request** opens the matching
-prompt for the owner. Existing extension permissions and pairing are retained.
-
 For authorized tasks, FraudBot should reuse an active website session or initiate
 Relay when sign-in is needed. Its standing policy stops further autofill after
 two failed attempts for a website/account until the owner authorizes another

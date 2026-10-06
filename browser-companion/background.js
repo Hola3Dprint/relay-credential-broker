@@ -155,35 +155,6 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     } else if (message.type === "relay-blur") {
       await request("/blur", { nonce: message.nonce });
     } else if (
-      message.type === "relay-private-notice" &&
-      origin === "https://chatgpt.com" &&
-      sender.frameId === 0 &&
-      /^\/dots\/[0-9a-f-]{36}$/.test(new URL(sender.url).pathname)
-    ) {
-      const active = message.active === true;
-      if (
-        active &&
-        (new URL(message.websiteOrigin).protocol !== "https:" ||
-          new URL(message.websiteOrigin).origin !== message.websiteOrigin)
-      )
-        return reply({ status: "BLOCKED" });
-      await Promise.all([
-        chrome.action.setBadgeText({
-          tabId: sender.tab.id,
-          text: active ? "!" : "",
-        }),
-        chrome.action.setBadgeBackgroundColor({
-          tabId: sender.tab.id,
-          color: "#ffbf69",
-        }),
-        chrome.action.setTitle({
-          tabId: sender.tab.id,
-          title: active
-            ? `Approval needed: ${new URL(message.websiteOrigin).host}`
-            : "Relay Private Autofill",
-        }),
-      ]);
-    } else if (
       message.type === "relay-private-tick" &&
       origin === "https://chatgpt.com" &&
       sender.frameId === 0 &&
@@ -194,12 +165,4 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     reply({ status: "OK" });
   })().catch(() => reply({ status: "BLOCKED" }));
   return true;
-});
-chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (!change.url) return;
-  // A notice belongs to one document; do not carry it onto another page.
-  Promise.all([
-    chrome.action.setBadgeText({ tabId, text: "" }),
-    chrome.action.setTitle({ tabId, title: "Relay Private Autofill" }),
-  ]).catch(() => {});
 });

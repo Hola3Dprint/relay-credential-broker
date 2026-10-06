@@ -5,7 +5,7 @@ FraudBot can trigger local autofill before it requests cloud-browser sign-in. Re
 ## Setup
 
 1. Keep Relay and its private tunnel running on the owner's computer.
-2. Update/reload **Relay Private Autofill** to version 0.2.2 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
+2. Update/reload **Relay Private Autofill** to version 0.2.3 and reload the Dot's ChatGPT tab in that paired Chrome profile. Existing pairing is retained.
 3. In Relay's **Connected clients → Edit access**, enable browser autofill and enter the exact Dot address in **Dot address for private sign-in**. This separately enables private-form fill access for that Dot. Leave the address blank to disable it.
 4. Refresh the connected ChatGPT plugin's catalog. The nine tools include `prepare_private_signin` and `private_signin_status`.
 5. Keep the configured Dot chat open in paired desktop Chrome. The local computer/browser must be online.
@@ -23,12 +23,6 @@ Use the current sign-in page's exact HTTPS origin, including any legitimate iden
 Then issue the normal native request using fields actually visible on the website. The companion opens only a unique matching native sign-in card in the configured Dot tab. It verifies the displayed website address and the actual private form before filling username/password fields. The owner confirms **Sign in**. The companion never clicks Sign in, Save to Passwords, takeover, or a sign-in method choice. The native request remains pending until the owner acts.
 
 After the native request returns, `private_signin_status({"requestId":"…"})` reports `ARMED`, `DELIVERED`, `FILLED`, or `BLOCKED`. These are fill states, not proof of website authentication. Verify the website through supported native browser observations. Respect a decline, an unavailable request, site errors and host approvals.
-
-## Approval-needed notification
-
-Companion 0.2.2 automatically shows an **Approval needed** notice after it fills a validated private request. The notice names the destination website, the browser tab title shows **Approval needed**, and the extension's toolbar badge shows **!**. No new extension permissions or separate notification permission are required. This is a notification inside paired desktop Chrome, not a Windows push notification or mobile alert.
-
-**Show request** brings the matching open private form into view, or opens its uniquely matching collapsed native request. It does not click the final Sign in control. **Dismiss notice** removes Relay's notice without approving or cancelling ChatGPT's request. The notice clears when the request closes or expires, and its toolbar badge clears on navigation. Notification text and metadata contain only the destination hostname/origin, never filled email/password values. Relay does not choose controls by screen-wide color or size.
 
 ## Automatic initiation and failure limit
 
