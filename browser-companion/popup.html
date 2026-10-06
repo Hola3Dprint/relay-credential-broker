@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Relay Private Autofill</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>Relay Private Autofill</h1>
+    <p id="status" role="status">Checking connection…</p>
+    <form id="pair">
+      <label for="code">Pairing code from Relay Settings</label
+      ><input id="code" type="password" required autocomplete="off" /><button>
+        Pair this browser
+      </button>
+    </form>
+    <p>
+      FraudBot focuses a login field, then calls Relay’s fill tool. Passwords go
+      directly to that field.
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>

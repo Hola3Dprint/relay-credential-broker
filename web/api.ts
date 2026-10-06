@@ -33,6 +33,15 @@ export type State = {
   accounts: Account[];
   audit: Audit[];
   clients: Client[];
+  enrollmentEmail?: string;
+  sharedCredentialConfigured?: boolean;
+  sharedSignup?: boolean;
+  browserCompanions?: {
+    id: string;
+    name: string;
+    pairedAt: string;
+    online: boolean;
+  }[];
 };
 const params = new URLSearchParams(location.hash.slice(1));
 if (params.has("token")) {

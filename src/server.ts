@@ -21,10 +21,13 @@ import {
 } from "./schema.js";
 import { demoCredential, demoSite, startDemo } from "./demo.js";
 import { createMcp } from "./tools.js";
+import { NativeBrowser, focusSchema } from "./native-browser.js";
+import { generatePassword } from "./totp.js";
 
 export async function createApp(store: Store) {
   const app = express();
   const broker = new Broker(store);
+  const native = new NativeBrowser(store);
   let demo: Awaited<ReturnType<typeof startDemo>> | undefined;
   const enrolledDemo = store.state.accounts["relay-demo:business"];
   if (
@@ -40,8 +43,12 @@ export async function createApp(store: Store) {
     const host = req.headers.host ?? "";
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host))
       return res.status(403).json({ error: "HOST_NOT_ALLOWED" });
+    const extension =
+      /^chrome-extension:\/\/[a-p]{32}$/.test(req.headers.origin ?? "") &&
+      req.path.startsWith("/api/browser/");
     if (
       req.headers.origin &&
+      !extension &&
       ![
         "http://127.0.0.1:4318",
         "http://localhost:4318",
@@ -50,6 +57,16 @@ export async function createApp(store: Store) {
       ].includes(req.headers.origin)
     )
       return res.status(403).json({ error: "ORIGIN_NOT_ALLOWED" });
+    if (extension) {
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin!);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type",
+      );
+      if (req.method === "OPTIONS") return res.status(204).end();
+    }
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -95,23 +112,50 @@ export async function createApp(store: Store) {
     if (!client.operations.includes(op))
       throw new Error("OPERATION_NOT_GRANTED");
     if (op === "list_accounts")
-      return Object.entries(store.state.accounts)
-        .filter(([key]) => client.accounts.includes(key))
-        .map(([_, a]) => ({
-          site: a.site.id,
-          identity: a.site.identity,
-          name: a.site.name,
-          status: a.result?.status ?? "ENROLLED",
-          taskPages: a.site.taskPages,
-        }));
+      return [
+        ...Object.entries(store.state.accounts)
+          .filter(([key]) => client.accounts.includes(key))
+          .map(([_, a]) => ({
+            site: a.site.id,
+            identity: a.site.identity,
+            name: a.site.name,
+            status: a.result?.status ?? "ENROLLED",
+            taskPages: a.site.taskPages,
+          })),
+        ...(store.state.sharedCredential &&
+        client.operations.includes("fill_saved_password")
+          ? [
+              {
+                mode: "shared",
+                name: "Shared browser credential",
+                status: "READY_TO_FILL",
+                taskPages: [],
+                instructions:
+                  "Focus the native browser field and call fill_saved_password or fill_saved_username with the current exact HTTPS origin. Omit site.",
+              },
+            ]
+          : []),
+      ];
     const input = z
       .object({
-        site: id,
+        site: id.optional(),
         identity: id.default("business"),
         url: z.string().url().max(2000).optional(),
+        tabId: z.number().int().nonnegative().optional(),
+        origin: z.string().url().max(500).optional(),
+        purpose: z.enum(["login", "signup"]).default("login"),
       })
       .parse(body);
-    if (!client.accounts.includes(accountKey(input.site, input.identity)))
+    const fillOperation = [
+      "fill_saved_username",
+      "fill_saved_password",
+      "fill_saved_totp",
+    ].includes(op);
+    if (
+      !fillOperation &&
+      (!input.site ||
+        !client.accounts.includes(accountKey(input.site, input.identity)))
+    )
       throw new Error("ACCOUNT_NOT_GRANTED");
     if (!store.state.ready)
       return {
@@ -120,6 +164,17 @@ export async function createApp(store: Store) {
         site: input.site,
         identity: input.identity,
       };
+    if (fillOperation)
+      return native.fill(
+        client,
+        input.site,
+        input.identity,
+        op.slice("fill_saved_".length) as "username" | "password" | "totp",
+        input.tabId,
+        input.origin,
+        input.purpose === "signup",
+      );
+    if (!input.site) throw new Error("SITE_REQUIRED");
     if (op === "ensure_login")
       return broker.ensureLogin(input.site, input.identity);
     if (op === "create_account")
@@ -137,6 +192,10 @@ export async function createApp(store: Store) {
       protection: store.envelope.mode,
       vaultConnected: !!store.state.bwsToken,
       mailboxConnected: !!store.state.mailbox,
+      enrollmentEmail: store.state.enrollmentEmail ?? "",
+      sharedCredentialConfigured: !!store.state.sharedCredential,
+      sharedSignup: !!store.state.sharedSignup,
+      browserCompanions: native.status(),
       accounts: Object.entries(store.state.accounts).map(([key, a]) => ({
         key,
         site: a.site.id,
@@ -153,6 +212,108 @@ export async function createApp(store: Store) {
       clients: store.state.clients.map(({ tokenHash: _, ...c }) => c),
     }),
   );
+  app.post("/api/profile", admin, async (req, res) => {
+    const email = z.string().email().max(320).parse(req.body.email);
+    await store.update((s) => {
+      s.enrollmentEmail = email;
+      if (s.sharedCredential) s.sharedCredential.username = email;
+    });
+    res.json({ saved: true });
+  });
+  app.post("/api/shared-credential", admin, async (req, res) => {
+    const input = z
+      .object({
+        email: z.string().email().max(320),
+        password: z.string().max(4096).optional(),
+        generate: z.boolean().default(false),
+        signup: z.boolean().default(false),
+      })
+      .parse(req.body);
+    if (input.generate && store.state.sharedCredential)
+      return res
+        .status(409)
+        .json({ error: "SHARED_PASSWORD_ALREADY_CONFIGURED" });
+    const password = input.generate
+      ? generatePassword()
+      : input.password || store.state.sharedCredential?.password;
+    if (!password)
+      return res.status(400).json({ error: "CREDENTIAL_REQUIRED" });
+    const credential = credentialsSchema.parse({
+      username: input.email,
+      password,
+    });
+    await store.update((s) => {
+      s.sharedCredential = credential;
+      s.enrollmentEmail = input.email;
+      s.sharedSignup = input.signup;
+    });
+    await store.audit("configure_shared_credential", "COMPLETE");
+    res.json({ configured: true });
+  });
+  app.post("/api/browser/pairing-code", admin, (_, res) =>
+    res.json(native.ticket()),
+  );
+  app.post("/api/browser/pair", async (req, res) => {
+    if (limited("browser-pair"))
+      return res.status(429).json({ error: "RATE_LIMITED" });
+    const code = z.string().min(20).max(100).parse(req.body.code);
+    try {
+      res.json(await native.pair(code));
+    } catch {
+      res.status(403).json({ error: "PAIRING_CODE_INVALID_OR_EXPIRED" });
+    }
+  });
+  const companion: express.RequestHandler = (req, res, next) => {
+    const companionId = native.authenticate(bearer(req));
+    if (!companionId)
+      return res.status(401).json({ error: "PAIRED_BROWSER_REQUIRED" });
+    res.locals.companionId = companionId;
+    next();
+  };
+  app.get("/api/browser/status", companion, (_, res) =>
+    res.json({ available: true }),
+  );
+  app.get("/api/browser/poll", companion, async (_, res) =>
+    res.json(await native.poll(res.locals.companionId)),
+  );
+  app.post("/api/browser/focus", companion, (req, res) => {
+    native.focus(res.locals.companionId, focusSchema.parse(req.body));
+    res.json({ recorded: true });
+  });
+  app.post("/api/browser/blur", companion, (req, res) => {
+    native.blur(
+      res.locals.companionId,
+      z.string().uuid().parse(req.body.nonce),
+    );
+    res.json({ recorded: true });
+  });
+  app.post("/api/browser/complete", companion, (req, res) => {
+    const input = z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(["FILLED", "BLOCKED"]),
+        reason: z
+          .enum([
+            "FIELD_FOCUS_CHANGED",
+            "FORM_ORIGIN_MISMATCH",
+            "NEW_PASSWORD_REQUIRES_LOCAL_SETUP",
+            "INVALID_COMMAND",
+          ])
+          .optional(),
+      })
+      .parse(req.body);
+    native.complete(
+      res.locals.companionId,
+      input.id,
+      input.status,
+      input.reason,
+    );
+    res.json({ recorded: true });
+  });
+  app.delete("/api/browser/companions/:id", admin, async (req, res) => {
+    await native.revokeCompanion(String(req.params.id));
+    res.json({ revoked: true });
+  });
   app.post("/api/setup", admin, async (req, res) => {
     const input = z
       .object({ protection: z.enum(["tpm", "dpapi", "passphrase"]) })
@@ -245,9 +406,14 @@ export async function createApp(store: Store) {
     const input = z
       .object({
         name: z.string().min(1).max(60),
-        accounts: z.array(z.string().max(130)).min(1).max(100),
+        accounts: z.array(z.string().max(130)).max(100),
         signup: z.boolean().default(false),
+        browser: z.boolean().default(false),
       })
+      .refine(
+        (input) => input.accounts.length > 0 || input.browser,
+        "Select accounts or enable browser autofill",
+      )
       .parse(req.body);
     if (input.accounts.some((key) => !store.state.accounts[key]))
       return res.status(400).json({ error: "UNKNOWN_ACCOUNT" });
@@ -258,6 +424,9 @@ export async function createApp(store: Store) {
       "ensure_login",
       "read_account_page",
       ...(input.signup ? ["create_account"] : []),
+      ...(input.browser
+        ? ["fill_saved_username", "fill_saved_password", "fill_saved_totp"]
+        : []),
     ];
     await store.update((s) => {
       s.clients.push({
@@ -278,8 +447,43 @@ export async function createApp(store: Store) {
       s.clients = s.clients.filter((c) => c.id !== req.params.id);
       if (s.clientSecrets) delete s.clientSecrets[String(req.params.id)];
     });
+    native.revokeClient(String(req.params.id));
     await store.audit("revoke_client", "COMPLETE");
     res.json({ revoked: true });
+  });
+  app.put("/api/clients/:id", admin, async (req, res) => {
+    const input = z
+      .object({
+        accounts: z.array(z.string().max(130)).max(100),
+        signup: z.boolean().default(false),
+        browser: z.boolean().default(false),
+      })
+      .refine(
+        (input) => input.accounts.length > 0 || input.browser,
+        "Select accounts or enable browser autofill",
+      )
+      .parse(req.body);
+    if (input.accounts.some((key) => !store.state.accounts[key]))
+      return res.status(400).json({ error: "UNKNOWN_ACCOUNT" });
+    let updated = false;
+    await store.update((s) => {
+      const client = s.clients.find((c) => c.id === req.params.id);
+      if (!client) return;
+      client.accounts = [...new Set(input.accounts)];
+      client.operations = [
+        "list_accounts",
+        "ensure_login",
+        "read_account_page",
+        ...(input.signup ? ["create_account"] : []),
+        ...(input.browser
+          ? ["fill_saved_username", "fill_saved_password", "fill_saved_totp"]
+          : []),
+      ];
+      updated = true;
+    });
+    if (!updated) return res.status(404).json({ error: "CLIENT_NOT_FOUND" });
+    await store.audit("update_client", "COMPLETE");
+    res.json({ updated: true });
   });
   app.post("/api/agent/:operation", async (req, res) => {
     const client = grant(req);
@@ -337,9 +541,11 @@ export async function createApp(store: Store) {
   return {
     app,
     broker,
+    native,
     agentCall,
     close: async () => {
       clearInterval(renewal);
+      native.close();
       await broker.close();
       await new Promise<void>((r) =>
         demo ? demo.server.close(() => r()) : r(),

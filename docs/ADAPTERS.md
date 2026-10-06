@@ -26,6 +26,8 @@ Use the basic enrollment form for password/TOTP websites, or paste full adapter 
 
 These are schema examples, not working supplier credentials or live website adapters. Use selectors verified on the actual site. The signed-in marker must be visible only after successful authentication. The broker checks it and stores cookies, localStorage and IndexedDB inside the encrypted vault. SessionStorage and arbitrary browser-profile files are not persisted.
 
+For websites whose Sign In button opens a dialog, add an optional `login.open` CSS selector. Relay clicks it only when the configured username field is not already visible, and checks for human-verification challenges before and after. It repeats this preparation during session renewal and configured reset recovery. This opens the sign-in form; it does not discover credentials or enroll accounts automatically.
+
 Origins must be HTTPS (127.0.0.1 HTTP is permitted for local fixtures). All form, session, signup, reset and task URLs must belong to allowed origins. Cross-origin requests, WebSockets and service workers are blocked. Include legitimate IdP and asset origins where necessary. Keep task pages to static URLs without embedded credentials or sensitive query parameters. Avoid settings pages that display secrets.
 
 ## Email MFA

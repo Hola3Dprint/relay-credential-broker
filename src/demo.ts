@@ -49,6 +49,15 @@ export async function startDemo(port = 4320): Promise<{
       ?.slice(key.length + 1);
   const html = (body: string) =>
     `<!doctype html><html><head><meta charset="utf-8"><title>Relay local test website</title><style>body{font:16px system-ui;max-width:600px;margin:80px auto;color:#102334}form{display:grid;gap:16px}input,button{font:inherit;padding:12px}button{background:#087e78;color:white;border:0}</style></head><body>${body}</body></html>`;
+  app.get("/modal-login", (_, res) =>
+    res.send(
+      html(
+        blocked
+          ? '<h1 id="human-check">Human verification required</h1>'
+          : '<h1>Relay modal sign-in fixture</h1><button id="open-login" onclick="document.getElementById(\'login-dialog\').showModal()">Sign in</button><dialog id="login-dialog"><form method="post" action="/login"><label>Email<input id="username" name="username"></label><label>Password<input id="password" name="password" type="password"></label><button id="submit">Sign in</button></form></dialog>',
+      ),
+    ),
+  );
   app.get("/login", (_, res) =>
     res.send(
       html(

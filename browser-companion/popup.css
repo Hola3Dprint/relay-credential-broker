@@ -1,0 +1,34 @@
+body {
+  width: 310px;
+  padding: 16px;
+  font: 14px system-ui;
+  color: #172b40;
+  background: #f6f9fa;
+}
+h1 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+p {
+  line-height: 1.5;
+}
+label {
+  display: block;
+  margin-bottom: 7px;
+}
+input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #c9d4d9;
+  border-radius: 6px;
+}
+button {
+  margin-top: 10px;
+  background: #087f7f;
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+}

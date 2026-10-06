@@ -58,9 +58,10 @@ const request = (
   auth?: string,
   body?: unknown,
   headers: Record<string, string> = {},
+  method?: string,
 ) =>
   fetch(url + path, {
-    method: body ? "POST" : "GET",
+    method: method ?? (body ? "POST" : "GET"),
     headers: {
       "Content-Type": "application/json",
       ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
@@ -151,6 +152,9 @@ describe("admin and client separation", () => {
       expect(listed.tools.map((t) => t.name).sort()).toEqual([
         "create_account",
         "ensure_login",
+        "fill_saved_password",
+        "fill_saved_totp",
+        "fill_saved_username",
         "list_accounts",
         "read_account_page",
       ]);
@@ -169,10 +173,136 @@ describe("admin and client separation", () => {
       await client.close();
     }
   });
+  it("keeps shared credential setup and browser pairing separate from Dot access", async () => {
+    const config = {
+      email: "shared@relay.test",
+      password: "Fixture-only-shared-password-32!",
+      signup: true,
+    };
+    expect(
+      (await request("/api/shared-credential", token, config)).status,
+    ).toBe(401);
+    const saved = await request(
+      "/api/shared-credential",
+      store.state.adminToken,
+      config,
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual({ configured: true });
+    const metadata = await (
+      await request("/api/state", store.state.adminToken)
+    ).text();
+    expect(metadata).not.toContain(config.password);
+    expect((await request("/api/browser/poll", token)).status).toBe(401);
+    expect((await request("/api/browser/pairing-code", token, {})).status).toBe(
+      401,
+    );
+    const ticket = await (
+      await request("/api/browser/pairing-code", store.state.adminToken, {})
+    ).json();
+    const pair = await (
+      await request("/api/browser/pair", undefined, { code: ticket.code })
+    ).json();
+    expect((await request("/api/state", pair.token)).status).toBe(401);
+    expect(
+      (await request("/api/agent/list_accounts", pair.token, {})).status,
+    ).toBe(401);
+    expect((await request("/api/browser/status", pair.token)).status).toBe(200);
+    expect(
+      (await request("/api/browser/pair", undefined, { code: ticket.code }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await request("/api/agent/fill_saved_password", token, {
+          origin: "https://example.com",
+        })
+      ).status,
+    ).toBe(403);
+  });
+  it("changes grants only through the console and preserves the existing token", async () => {
+    await store.update((s) => {
+      s.accounts["relay-demo:second"] = {
+        site: { ...demoSite(4322), identity: "second" },
+        binding: { provider: "local" },
+        credential: { ...demoCredential },
+      };
+    });
+    const tokenHash = store.state.clients[0].tokenHash;
+    const grant = { accounts: ["relay-demo:second"], signup: false };
+    expect(
+      (await request("/api/clients/client", token, grant, {}, "PUT")).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(
+          "/api/clients/client",
+          store.state.adminToken,
+          { accounts: ["missing"] },
+          {},
+          "PUT",
+        )
+      ).status,
+    ).toBe(400);
+    expect(store.state.clients[0].accounts).toEqual(["relay-demo:business"]);
+    expect(
+      (
+        await request(
+          "/api/clients/client",
+          store.state.adminToken,
+          grant,
+          {},
+          "PUT",
+        )
+      ).status,
+    ).toBe(200);
+    expect(store.state.clients[0].tokenHash).toBe(tokenHash);
+    expect(store.state.clients[0].id).toBe("client");
+    const listed = await request("/api/agent/list_accounts", token, {});
+    expect(await listed.json()).toEqual([
+      {
+        site: "relay-demo",
+        identity: "second",
+        name: "Relay demo",
+        status: "ENROLLED",
+        taskPages: ["http://127.0.0.1:4322/account"],
+      },
+    ]);
+    expect(
+      (
+        await request("/api/agent/ensure_login", token, {
+          site: "relay-demo",
+          identity: "business",
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request("/api/agent/create_account", token, {
+          site: "relay-demo",
+          identity: "second",
+        })
+      ).status,
+    ).toBe(403);
+  });
   it("immediately revokes existing client tokens", async () => {
     await store.update((s) => {
       s.clients = [];
     });
+    expect((await request("/api/agent/list_accounts", token, {})).status).toBe(
+      401,
+    );
+    expect(
+      (
+        await request(
+          "/api/clients/client",
+          store.state.adminToken,
+          { accounts: ["relay-demo:second"], signup: false },
+          {},
+          "PUT",
+        )
+      ).status,
+    ).toBe(404);
     expect((await request("/api/agent/list_accounts", token, {})).status).toBe(
       401,
     );

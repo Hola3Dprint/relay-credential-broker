@@ -28,7 +28,9 @@ export class CredentialProvider {
   async validateConnection() {
     await this.client();
   }
-  async get(account: Account): Promise<Credential> {
+  async get(
+    account: Pick<Account, "binding" | "credential">,
+  ): Promise<Credential> {
     if (account.binding.provider === "local") {
       if (!account.credential) throw new Error("ACCOUNT_NOT_ENROLLED");
       return structuredClone(account.credential);

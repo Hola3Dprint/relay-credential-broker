@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { ShieldCheck, CheckCircle2, Terminal, Copy } from "lucide-react";
-import { api, type State } from "./api";
+import { api, type State, type Client } from "./api";
 import { Button, Field } from "./components";
 type Done = { onDone: () => void };
 const message = (e: unknown) =>
@@ -76,7 +76,112 @@ export function SetupForm({
     </form>
   );
 }
-export function AccountForm({ onDone }: Done) {
+export function AccountForm({ onDone, state }: Done & { state: State }) {
+  const [mode, setMode] = useState("native");
+  const [generate, setGenerate] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (mode === "configured")
+    return (
+      <>
+        <Button secondary onClick={() => setMode("native")}>
+          Use browser autofill
+        </Button>
+        <ConfiguredAccountForm onDone={onDone} />
+      </>
+    );
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError("");
+        const data = new FormData(e.currentTarget);
+        try {
+          await api("/shared-credential", {
+            email: data.get("email"),
+            generate,
+            signup: data.get("signup") === "on",
+            ...(!generate ? { password: data.get("password") } : {}),
+          });
+          onDone();
+        } catch (e) {
+          setError(message(e));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <p className="subtle">
+        One email and one shared website password. FraudBot navigates each site,
+        focuses a login field, and calls Relay to fill it privately. No company
+        adapters or separate enrollments are needed.
+      </p>
+      <Field label="Default email">
+        <input
+          name="email"
+          type="email"
+          defaultValue={state.enrollmentEmail ?? ""}
+          autoComplete="email"
+          required
+        />
+      </Field>
+      {!state.sharedCredentialConfigured && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={generate}
+            onChange={(e) => setGenerate(e.target.checked)}
+          />
+          Generate my shared password once
+        </label>
+      )}
+      {generate ? (
+        <p className="subtle">
+          Relay generates a random password and stores it in the encrypted
+          vault. The password is never returned to FraudBot.
+        </p>
+      ) : (
+        <Field
+          label={
+            state.sharedCredentialConfigured
+              ? "Shared password (leave blank to keep saved password)"
+              : "Shared website password"
+          }
+        >
+          <input
+            name="password"
+            type="password"
+            autoComplete="off"
+            required={!state.sharedCredentialConfigured}
+          />
+        </Field>
+      )}
+      <label className="check">
+        <input
+          type="checkbox"
+          name="signup"
+          defaultChecked={state.sharedSignup ?? false}
+        />
+        Allow this shared password in new-account forms
+      </label>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <Button busy={busy}>
+        {generate
+          ? "Generate and save shared credential"
+          : "Save shared credential"}
+      </Button>
+      <Button secondary type="button" onClick={() => setMode("configured")}>
+        Use a configured broker workflow
+      </Button>
+    </form>
+  );
+}
+function ConfiguredAccountForm({ onDone }: Done) {
   const [provider, setProvider] = useState("local");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -98,6 +203,7 @@ export function AccountForm({ onDone }: Done) {
             origins: [origin],
             login: {
               url: new URL(value("loginUrl"), origin).href,
+              ...(value("openSelector") ? { open: value("openSelector") } : {}),
               username: value("usernameSelector"),
               password: value("passwordSelector"),
               submit: value("submitSelector"),
@@ -223,6 +329,11 @@ export function AccountForm({ onDone }: Done) {
           {[
             ["loginUrl", "Login URL", "/login"],
             ["checkUrl", "Session check URL", "/account"],
+            [
+              "openSelector",
+              "Open sign-in form (optional)",
+              'button[data-automation-id="utilityButtonSignIn"]',
+            ],
             ["usernameSelector", "Username field", "#email"],
             ["passwordSelector", "Password field", "#password"],
             ["submitSelector", "Sign-in button", 'button[type="submit"]'],
@@ -234,7 +345,11 @@ export function AccountForm({ onDone }: Done) {
               <input
                 name={name}
                 placeholder={placeholder}
-                required={!advanced && !name.startsWith("totp")}
+                required={
+                  !advanced &&
+                  !name.startsWith("totp") &&
+                  name !== "openSelector"
+                }
               />
             </Field>
           ))}
@@ -376,24 +491,46 @@ export function MailboxForm({ onDone }: Done) {
     </form>
   );
 }
-export function ClientForm({ state, onDone }: Done & { state: State }) {
+export function ClientForm({
+  state,
+  onDone,
+  client,
+}: Done & { state: State; client?: Client }) {
   const [selected, setSelected] = useState<string[]>(
-    state.accounts.map((a) => a.key),
+    client?.accounts ?? state.accounts.map((a) => a.key),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ id: string; token: string }>();
   const [copied, setCopied] = useState(false);
+  const [browser, setBrowser] = useState(
+    client?.operations.includes("fill_saved_password") ?? false,
+  );
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true);
+    setError("");
     try {
+      if (client) {
+        await api(
+          `/clients/${encodeURIComponent(client.id)}`,
+          {
+            accounts: selected,
+            signup: f.get("signup") === "on",
+            browser: f.get("browser") === "on",
+          },
+          "PUT",
+        );
+        onDone();
+        return;
+      }
       setCreated(
         await api("/clients", {
           name: f.get("name"),
           accounts: selected,
           signup: f.get("signup") === "on",
+          browser: f.get("browser") === "on",
         }),
       );
     } catch (e) {
@@ -449,12 +586,18 @@ export function ClientForm({ state, onDone }: Done & { state: State }) {
       <div className="form-intro">
         <Terminal size={32} />
         <p>
-          Create private, scoped access for a ChatGPT Dot. Enrollment
-          credentials stay on this device.
+          {client
+            ? "Choose the accounts this Dot may use. Changes apply to its existing connection."
+            : "Create private, scoped access for a ChatGPT Dot. Enrollment credentials stay on this device."}
         </p>
       </div>
       <Field label="Client name">
-        <input name="name" defaultValue="ChatGPT Dot" required />
+        <input
+          name="name"
+          defaultValue={client?.name ?? "ChatGPT Dot"}
+          readOnly={!!client}
+          required
+        />
       </Field>
       <fieldset>
         <legend>Permitted accounts</legend>
@@ -477,7 +620,23 @@ export function ClientForm({ state, onDone }: Done & { state: State }) {
         ))}
       </fieldset>
       <label className="check">
-        <input type="checkbox" name="signup" />
+        <input
+          type="checkbox"
+          name="browser"
+          checked={browser}
+          onChange={(e) => setBrowser(e.target.checked)}
+        />
+        Allow the shared credential to fill focused fields on requested HTTPS
+        sites
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          name="signup"
+          defaultChecked={
+            client?.operations.includes("create_account") ?? false
+          }
+        />
         Allow configured account signup
       </label>
       <p className="subtle">
@@ -488,9 +647,91 @@ export function ClientForm({ state, onDone }: Done & { state: State }) {
           {error}
         </p>
       )}
-      <Button busy={busy} disabled={!selected.length}>
-        Create Dot access
+      <Button busy={busy} disabled={!selected.length && !browser}>
+        {client ? "Save access" : "Create Dot access"}
       </Button>
     </form>
+  );
+}
+export function BrowserForm({ state, onDone }: Done & { state: State }) {
+  const [pairing, setPairing] = useState<{
+    code: string;
+    expiresInSeconds: number;
+  }>();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div>
+      <p className="subtle">
+        Install Relay Private Autofill in the Chrome profile FraudBot uses. Pair
+        it once, then FraudBot can focus a login field and ask Relay to fill it.
+      </p>
+      <p className="subtle">
+        Load the browser-companion folder from this Relay installation at
+        chrome://extensions. The extension needs access to HTTPS pages to reach
+        the focused login field, and to your local Relay broker.
+      </p>
+      {pairing ? (
+        <>
+          <Field label="One-time pairing code">
+            <input readOnly type="password" value={pairing.code} />
+          </Field>
+          <p className="subtle">
+            Paste this in the Relay extension popup. It expires in five minutes
+            and works once.
+          </p>
+          <Button
+            secondary
+            onClick={async () => {
+              await navigator.clipboard.writeText(pairing.code);
+              setCopied(true);
+            }}
+          >
+            {copied ? "Copied" : "Copy pairing code"}
+          </Button>
+        </>
+      ) : (
+        <Button
+          busy={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              setPairing(await api("/browser/pairing-code", {}));
+            } catch (e) {
+              setError(message(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Create pairing code
+        </Button>
+      )}
+      {(state.browserCompanions ?? []).map((c) => (
+        <p key={c.id}>
+          {c.name} · paired{" "}
+          <Button
+            secondary
+            onClick={async () => {
+              try {
+                await api(`/browser/companions/${c.id}`, {}, "DELETE");
+                onDone();
+              } catch (e) {
+                setError(message(e));
+              }
+            }}
+          >
+            Revoke browser
+          </Button>
+        </p>
+      ))}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <Button onClick={onDone}>Done</Button>
+    </div>
   );
 }

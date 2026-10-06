@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Relay Private Autofill",
+  "version": "0.1.0",
+  "description": "Fill a focused login field from your paired local Relay broker without giving secrets to an AI.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["http://127.0.0.1/*", "https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Relay Private Autofill"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

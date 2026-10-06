@@ -1,10 +1,10 @@
 # Relay
 
-A private Windows credential broker for ChatGPT Dots and other MCP clients. Enroll an account once; Relay restores encrypted browser sessions, signs in again when needed, and handles explicitly configured MFA inside its own browser. Agents receive outcomes and permitted page text, never credential values.
+A private Windows credential broker for ChatGPT Dots and other MCP clients. Save one shared website password and default email once. FraudBot navigates each website, focuses its login field, and calls Relay's fill tool. A paired Chrome companion fills the field directly; the AI receives `FILLED` or `BLOCKED`, never the password. No company-specific adapter or enrollment is required for this workflow.
 
 ![Relay dashboard after local demo sign-in](docs/dashboard.png)
 
-**Working implementation, not a universal login adapter.** Each website needs an explicit adapter. Real Bitwarden, mailbox, signup, reset, and ChatGPT connections require enrollment and provider-specific verification. A local test website exercises the complete password + TOTP + session workflow without real accounts.
+The Chrome companion supports visible native HTML inputs in the paired desktop Chrome profile. The shared password must already be valid for an existing account, or satisfy the site's rules for a new one. AI navigation and site/ChatGPT confirmations remain the host's responsibility. The optional isolated browser workflow still supports explicitly configured sign-in, MFA, session renewal and page reading.
 
 ## Run on Windows
 
@@ -38,18 +38,27 @@ See [the Dot connection guide](docs/CHATGPT-DOTS.md). Relay includes:
 - A preparation script and managed runtime runner for OpenAI Secure MCP Tunnel so the broker can remain private.
 - A portable skills plugin in `plugin/`, usable alongside the connected Relay MCP plugin.
 
-The supported path is **Dot → ChatGPT Relay plugin → Secure MCP Tunnel → scoped stdio bridge → local broker → website**. The broker does not transfer cookies to the Dot's native browser. Use `read_account_page` to work with permitted authenticated pages.
+For shared autofill the path is **Dot → Relay MCP tool → local broker → paired Chrome companion → focused login field**. FraudBot uses its regular browser session, without any cookie transfer. See [Chrome companion setup](docs/BROWSER-COMPANION.md). Save the shared credential under Settings, pair Chrome once, and enable shared browser autofill for the existing Dot under **Settings → Connected clients → Manage access**. Signup requires both the shared credential's new-account setting and the Dot's signup permission.
 
-| Tool                | Result                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| `list_accounts`     | Scoped account identifiers and permitted task pages                                            |
-| `ensure_login`      | `AUTHENTICATED`, `BLOCKED`, or `ERROR`                                                         |
-| `read_account_page` | Visible text from an exact owner-enrolled task URL                                             |
-| `create_account`    | Configured signup, verification and optional TOTP enrollment; requires a separate signup grant |
+| Tool                  | Result                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `list_accounts`       | Scoped account identifiers and permitted task pages                                                |
+| `ensure_login`        | `AUTHENTICATED`, `BLOCKED`, or `ERROR`                                                             |
+| `read_account_page`   | Visible text from an exact owner-enrolled task URL                                                 |
+| `create_account`      | Configured signup, verification and optional TOTP enrollment; requires a separate signup grant     |
+| `fill_saved_username` | Fill the default email in the matching focused native-browser field; no email in the tool response |
+| `fill_saved_password` | Fill the one saved password at the exact requested HTTPS origin; returns only a status             |
+| `fill_saved_totp`     | Fill an enrolled account's authenticator code directly; requires its saved TOTP seed               |
 
 No secret retrieval, arbitrary JavaScript, cookie export, mailbox search, shell, or unrestricted browser tools are exposed. The MCP annotations accurately flag authentication workflows as potentially mutating, including configured password reset. ChatGPT and Dot permissions remain in effect.
 
-## Enroll real accounts
+## One shared credential
+
+In **Settings → Shared website credential**, enter your default email and shared password locally, or choose **Generate my shared password once**. Relay stores one credential in the existing encrypted vault. It never reads back the password into the console. Enable new-account fields only if you want the same saved password used for signup. The fill tool does not click Submit, accept terms, or create accounts by itself.
+
+The AI calls `fill_saved_password({"origin":"https://current-site.example"})` after focusing the password input. Omit `site` to use the shared credential. The companion verifies the live origin, field type, focus nonce and form destination. It refuses changed focus and password-change forms. Multiple matching tabs require an explicit `tabId`.
+
+## Optional configured broker workflows
 
 In Accounts, enter credentials locally or choose a Bitwarden Secrets Manager secret ID. Configure exact origins, sign-in selectors, a signed-in marker, and the session-check URL. Set exact task URLs the Dot may read. Add any required identity-provider and asset origins explicitly; other network requests are blocked.
 

@@ -106,6 +106,14 @@ export class Broker {
           .catch(() => false)
       : false;
   }
+  private async openLogin(page: Page, site: Site) {
+    await this.navigate(page, site.login.url, site);
+    if (site.login.open && !(await this.visible(page, site.login.username))) {
+      await this.checkBlocked(page, site);
+      await page.locator(site.login.open).click();
+      await this.checkBlocked(page, site);
+    }
+  }
   private async checkBlocked(page: Page, site: Site) {
     const selectors = [
       ...site.blockedSelectors,
@@ -206,7 +214,7 @@ export class Broker {
         let submittedPending = !!account.pendingPassword;
         if (account.pendingPassword)
           credential.password = account.pendingPassword;
-        await this.navigate(page, site.login.url, site);
+        await this.openLogin(page, site);
         const started = new Date();
         await page.locator(site.login.username).fill(credential.username);
         await page.locator(site.login.password).fill(credential.password);
@@ -231,7 +239,7 @@ export class Broker {
           // A reset may have failed before changing the site. Try the previous password once.
           credential.password = originalPassword;
           submittedPending = false;
-          await this.navigate(page, site.login.url, site);
+          await this.openLogin(page, site);
           await page.locator(site.login.username).fill(credential.username);
           await page.locator(site.login.password).fill(credential.password);
           await page.locator(site.login.submit).click();
@@ -248,7 +256,7 @@ export class Broker {
         }
         if (site.reset && (await this.visible(page, site.reset.expired))) {
           await this.reset(page, account, credential);
-          await this.navigate(page, site.login.url, site);
+          await this.openLogin(page, site);
           await page.locator(site.login.username).fill(credential.username);
           await page.locator(site.login.password).fill(credential.password);
           await page.locator(site.login.submit).click();

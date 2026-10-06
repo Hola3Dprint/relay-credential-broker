@@ -47,7 +47,7 @@ export const siteSchema = z
     name: z.string().min(1).max(80),
     identity: id.default("business"),
     origins: z.array(origin).min(1).max(8),
-    login: flow,
+    login: flow.extend({ open: selector.optional() }),
     mfa: z
       .object({
         input: selector,

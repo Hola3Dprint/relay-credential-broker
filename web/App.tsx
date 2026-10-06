@@ -14,11 +14,12 @@ import {
   Mail,
   Trash2,
 } from "lucide-react";
-import { api, getToken, setToken, type State } from "./api";
+import { api, getToken, setToken, type State, type Client } from "./api";
 import { AccountEmpty, Activity, Button, Field, Modal } from "./components";
 import {
   AccountForm,
   ClientForm,
+  BrowserForm,
   MailboxForm,
   SetupForm,
   VaultForm,
@@ -34,8 +35,17 @@ const blank: State = {
 };
 type Page = "Overview" | "Accounts" | "Activity" | "Settings";
 type Dialog =
-  "setup" | "account" | "vault" | "mailbox" | "client" | "access" | null;
+  | "setup"
+  | "account"
+  | "vault"
+  | "mailbox"
+  | "client"
+  | "browser"
+  | "access"
+  | null;
 const settingsItems = [
+  { Icon: KeyRound, title: "Shared website credential", dialog: "account" },
+  { Icon: PlugZap, title: "Chrome autofill companion", dialog: "browser" },
   { Icon: Shield, title: "Device protection", dialog: "setup" },
   { Icon: KeyRound, title: "Credential vault", dialog: "vault" },
   { Icon: Mail, title: "Authentication mailbox", dialog: "mailbox" },
@@ -45,6 +55,7 @@ export function App() {
   const [page, setPage] = useState<Page>("Overview");
   const [state, setState] = useState<State>(blank);
   const [modal, setModal] = useState<Dialog>(null);
+  const [editingClient, setEditingClient] = useState<Client>();
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [connected, setConnected] = useState(false);
@@ -68,6 +79,7 @@ export function App() {
     setModal(getToken() && connected ? dialog : "access");
   const done = () => {
     setModal(null);
+    setEditingClient(undefined);
     void refresh();
   };
   async function demo() {
@@ -110,6 +122,12 @@ export function App() {
     }
   }
   const settingsText = [
+    state.sharedCredentialConfigured
+      ? "One shared password · saved in the encrypted vault"
+      : "Save or generate your shared website password once",
+    (state.browserCompanions?.length ?? 0)
+      ? `${state.browserCompanions!.length} browser paired`
+      : "Pair the Chrome profile FraudBot uses",
     state.ready
       ? `${state.protection.toUpperCase()} · configured`
       : "Complete one-time setup",
@@ -219,7 +237,7 @@ export function App() {
                 <h2>Connected accounts</h2>
                 <Button secondary onClick={() => open("account")}>
                   <Plus size={20} />
-                  Add account
+                  Shared credential
                 </Button>
               </div>
               <div className="account-list">
@@ -322,6 +340,32 @@ export function App() {
         )}
         {page === "Settings" && (
           <>
+            <section className="panel">
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await api("/profile", {
+                      email: new FormData(e.currentTarget).get("email"),
+                    });
+                    setNotice("Default email saved.");
+                    await refresh();
+                  } catch (e) {
+                    setNotice((e as Error).message);
+                  }
+                }}
+              >
+                <Field label="Default account email">
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={state.enrollmentEmail ?? ""}
+                    required
+                  />
+                </Field>
+                <Button secondary>Save default email</Button>
+              </form>
+            </section>
             <section className="settings-list">
               {settingsItems.map(({ Icon, title, dialog }, i) => (
                 <div className="settings-row" key={title}>
@@ -352,8 +396,21 @@ export function App() {
                       <small>
                         {c.accounts.length} permitted account
                         {c.accounts.length === 1 ? "" : "s"}
+                        {c.operations.includes("fill_saved_password")
+                          ? " · shared browser autofill"
+                          : ""}
                       </small>
                     </div>
+                    <Button
+                      secondary
+                      aria-label={`Manage access for ${c.name}`}
+                      onClick={() => {
+                        setEditingClient(c);
+                        open("client");
+                      }}
+                    >
+                      Manage access
+                    </Button>
                     <button
                       className="icon-button"
                       aria-label={`Revoke ${c.name}`}
@@ -385,10 +442,13 @@ export function App() {
           title={
             {
               setup: "Set up your secure broker",
-              account: "Enroll an account",
+              account: "Your shared website credential",
+              browser: "Pair Chrome autofill",
               vault: "Connect Bitwarden",
               mailbox: "Authentication mailbox",
-              client: "Connect a ChatGPT Dot",
+              client: editingClient
+                ? "Manage Dot access"
+                : "Connect a ChatGPT Dot",
               access: "Connect your local console",
             }[modal]
           }
@@ -397,10 +457,18 @@ export function App() {
           {modal === "setup" && (
             <SetupForm onDone={done} initialProtection={state.protection} />
           )}
-          {modal === "account" && <AccountForm onDone={done} />}
+          {modal === "account" && <AccountForm onDone={done} state={state} />}
+          {modal === "browser" && <BrowserForm onDone={done} state={state} />}
           {modal === "vault" && <VaultForm onDone={done} />}
           {modal === "mailbox" && <MailboxForm onDone={done} />}
-          {modal === "client" && <ClientForm state={state} onDone={done} />}
+          {modal === "client" && (
+            <ClientForm
+              key={editingClient?.id ?? "new"}
+              state={state}
+              client={editingClient}
+              onDone={done}
+            />
+          )}
           {modal === "access" && (
             <form
               onSubmit={async (e) => {

@@ -100,6 +100,44 @@ describe("real browser authentication", () => {
       reason: "ACCOUNT_NOT_ENROLLED",
     });
   });
+  it("opens an owner-configured sign-in dialog and renews its session", async () => {
+    const site = demoSite(demo.port);
+    site.id = "modal-demo";
+    site.login.url = `http://127.0.0.1:${demo.port}/modal-login`;
+    site.login.open = "#open-login";
+    await store.update((s) => {
+      s.accounts[accountKey(site.id, site.identity)] = {
+        site,
+        binding: { provider: "local" },
+        credential: structuredClone(demoCredential),
+      };
+    });
+    expect(await broker.ensureLogin(site.id)).toMatchObject({
+      status: "AUTHENTICATED",
+      reused: false,
+    });
+    expect(await broker.ensureLogin(site.id)).toMatchObject({
+      status: "AUTHENTICATED",
+      reused: true,
+    });
+    demo.expire();
+    expect(await broker.ensureLogin(site.id)).toMatchObject({
+      status: "AUTHENTICATED",
+      reused: false,
+    });
+  });
+  it("does not open a sign-in dialog when a human challenge is present", async () => {
+    demo.expire();
+    demo.challenge(true);
+    try {
+      expect(await broker.ensureLogin("modal-demo")).toMatchObject({
+        status: "BLOCKED",
+        reason: "HUMAN_VERIFICATION_REQUIRED",
+      });
+    } finally {
+      demo.challenge(false);
+    }
+  });
   it("recovers the previous password if a pending reset never reached the website", async () => {
     demo.expire();
     await store.update((s) => {

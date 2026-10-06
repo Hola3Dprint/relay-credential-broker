@@ -49,6 +49,12 @@ export type ClientGrant = {
   operations: string[];
   createdAt: string;
 };
+export type BrowserCompanion = {
+  id: string;
+  name: string;
+  tokenHash: string;
+  pairedAt: string;
+};
 export type State = {
   version: 1;
   ready: boolean;
@@ -58,6 +64,10 @@ export type State = {
   usedMail?: string[];
   clientSecrets?: Record<string, string>;
   accounts: Record<string, Account>;
+  browserCompanions?: BrowserCompanion[];
+  enrollmentEmail?: string;
+  sharedCredential?: Credential;
+  sharedSignup?: boolean;
   clients: ClientGrant[];
   audit: Audit[];
 };
