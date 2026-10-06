@@ -30,9 +30,7 @@ export function demoSite(port = 4320) {
     timeoutMs: 3000,
   });
 }
-export async function startDemo(
-  port = 4320,
-): Promise<{
+export async function startDemo(port = 4320): Promise<{
   server: Server;
   port: number;
   expire: () => void;
