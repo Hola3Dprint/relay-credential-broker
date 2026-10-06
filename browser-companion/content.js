@@ -3,6 +3,11 @@
   let nonce;
   const kind = (input) => {
     if (
+      location.origin === "https://chatgpt.com" &&
+      input?.name?.startsWith("browser-auth-field-")
+    )
+      return undefined; // Native private forms require the separately bound workflow.
+    if (
       !(input instanceof HTMLInputElement) ||
       input.disabled ||
       input.readOnly ||

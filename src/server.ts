@@ -22,12 +22,19 @@ import {
 import { demoCredential, demoSite, startDemo } from "./demo.js";
 import { createMcp } from "./tools.js";
 import { NativeBrowser, focusSchema } from "./native-browser.js";
+import {
+  PrivateSignIn,
+  privateDeliverySchema,
+  privateOriginSchema,
+  privateDotUrlSchema,
+} from "./private-signin.js";
 import { generatePassword } from "./totp.js";
 
 export async function createApp(store: Store) {
   const app = express();
   const broker = new Broker(store);
   const native = new NativeBrowser(store);
+  const privateSignIn = new PrivateSignIn(store);
   let demo: Awaited<ReturnType<typeof startDemo>> | undefined;
   const enrolledDemo = store.state.accounts["relay-demo:business"];
   if (
@@ -111,6 +118,24 @@ export async function createApp(store: Store) {
   ) {
     if (!client.operations.includes(op))
       throw new Error("OPERATION_NOT_GRANTED");
+    if (op === "prepare_private_signin") {
+      const input = z
+        .object({
+          origin: privateOriginSchema,
+          demo: z.boolean().default(false),
+        })
+        .parse(body);
+      if (!store.state.ready)
+        return { status: "BLOCKED", reason: "SETUP_REQUIRED" };
+      const readiness = native.readiness();
+      if (readiness.status === "BLOCKED") return readiness;
+      return privateSignIn.prepare(client, input.origin, input.demo);
+    }
+    if (op === "private_signin_status")
+      return privateSignIn.status(
+        client,
+        z.string().uuid().parse(body.requestId),
+      );
     if (op === "list_accounts")
       return [
         ...Object.entries(store.state.accounts)
@@ -277,6 +302,24 @@ export async function createApp(store: Store) {
   app.get("/api/browser/poll", companion, async (_, res) =>
     res.json(await native.poll(res.locals.companionId)),
   );
+  app.get("/api/browser/private-jobs", companion, (_, res) =>
+    res.json({ jobs: privateSignIn.pending() }),
+  );
+  app.post("/api/browser/private-delivery", companion, (req, res) =>
+    res.json(
+      privateSignIn.deliver(
+        res.locals.companionId,
+        privateDeliverySchema.parse(req.body),
+      ),
+    ),
+  );
+  app.post("/api/browser/private-complete", companion, (req, res) => {
+    const input = z
+      .object({ id: z.string().uuid(), status: z.enum(["FILLED", "BLOCKED"]) })
+      .parse(req.body);
+    privateSignIn.complete(res.locals.companionId, input.id, input.status);
+    res.json({ recorded: true });
+  });
   app.post("/api/browser/focus", companion, (req, res) => {
     native.focus(res.locals.companionId, focusSchema.parse(req.body));
     res.json({ recorded: true });
@@ -312,6 +355,7 @@ export async function createApp(store: Store) {
     res.json({ recorded: true });
   });
   app.delete("/api/browser/companions/:id", admin, async (req, res) => {
+    privateSignIn.revokeCompanion(String(req.params.id));
     await native.revokeCompanion(String(req.params.id));
     res.json({ revoked: true });
   });
@@ -410,7 +454,12 @@ export async function createApp(store: Store) {
         accounts: z.array(z.string().max(130)).max(100),
         signup: z.boolean().default(false),
         browser: z.boolean().default(false),
+        privateSignInDotUrl: privateDotUrlSchema,
       })
+      .refine(
+        (input) => !input.privateSignInDotUrl || input.browser,
+        "Private sign-in requires browser autofill",
+      )
       .refine(
         (input) => input.accounts.length > 0 || input.browser,
         "Select accounts or enable browser autofill",
@@ -428,6 +477,9 @@ export async function createApp(store: Store) {
       ...(input.browser
         ? ["fill_saved_username", "fill_saved_password", "fill_saved_totp"]
         : []),
+      ...(input.privateSignInDotUrl
+        ? ["prepare_private_signin", "private_signin_status"]
+        : []),
     ];
     await store.update((s) => {
       s.clients.push({
@@ -435,6 +487,7 @@ export async function createApp(store: Store) {
         name: input.name,
         accounts: input.accounts,
         operations,
+        privateSignInDotId: input.privateSignInDotUrl,
         tokenHash: hashToken(token),
         createdAt: new Date().toISOString(),
       });
@@ -449,6 +502,7 @@ export async function createApp(store: Store) {
       if (s.clientSecrets) delete s.clientSecrets[String(req.params.id)];
     });
     native.revokeClient(String(req.params.id));
+    privateSignIn.revokeClient(String(req.params.id));
     await store.audit("revoke_client", "COMPLETE");
     res.json({ revoked: true });
   });
@@ -458,7 +512,12 @@ export async function createApp(store: Store) {
         accounts: z.array(z.string().max(130)).max(100),
         signup: z.boolean().default(false),
         browser: z.boolean().default(false),
+        privateSignInDotUrl: privateDotUrlSchema,
       })
+      .refine(
+        (input) => !input.privateSignInDotUrl || input.browser,
+        "Private sign-in requires browser autofill",
+      )
       .refine(
         (input) => input.accounts.length > 0 || input.browser,
         "Select accounts or enable browser autofill",
@@ -479,7 +538,11 @@ export async function createApp(store: Store) {
         ...(input.browser
           ? ["fill_saved_username", "fill_saved_password", "fill_saved_totp"]
           : []),
+        ...(input.privateSignInDotUrl
+          ? ["prepare_private_signin", "private_signin_status"]
+          : []),
       ];
+      client.privateSignInDotId = input.privateSignInDotUrl;
       updated = true;
     });
     if (!updated) return res.status(404).json({ error: "CLIENT_NOT_FOUND" });
@@ -547,6 +610,7 @@ export async function createApp(store: Store) {
     close: async () => {
       clearInterval(renewal);
       native.close();
+      privateSignIn.close();
       await broker.close();
       await new Promise<void>((r) =>
         demo ? demo.server.close(() => r()) : r(),

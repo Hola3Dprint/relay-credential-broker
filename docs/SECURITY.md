@@ -32,6 +32,8 @@ Use the official private tunnel with the intended organization/workspace. The re
 
 ## Mail and account changes
 
+Private sign-in preparation is a separate client operation bound by the owner to one exact ChatGPT Dot chat. Only a paired local companion can obtain an armed job or its single-use credential delivery. The companion verifies the native private dialog and displayed website, then rechecks form and field identity before writing. Routing metadata, status and MCP responses contain no credential values. The companion never submits, selects a sign-in method or enables saved-password storage. Native ChatGPT confirmation remains with the owner. Its HTML form structure is a compatibility dependency; changed or unrecognized forms are refused. See PRIVATE-SIGNIN.md.
+
 Email ingestion requires TLS, exact sender/recipient/subject, recent internal arrival time, receiving-provider-attested aligned DKIM and an explicit HTTPS link-origin allowlist. The mail provider must strip inbound Authentication-Results claiming its own authserv-id. The broker does not perform its own DNS DKIM verification; it trusts the enrolled receiving mail server's result. Numeric OTP matching is bounded. Message identifiers and recovery codes are reserved before use and stored encrypted.
 
 Signup and reset require explicit adapters and suitable grants. Unknown outcomes are retained for recovery. The broker does not bypass CAPTCHA, physical passkeys, push approvals or identity checks. Selector-based detection must be configured for each site's challenge screens. Terms acceptance and host-sensitive confirmations remain the user's/ChatGPT's responsibility. MCP annotations declare mutating behavior accurately.

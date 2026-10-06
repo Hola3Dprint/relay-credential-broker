@@ -519,6 +519,7 @@ export function ClientForm({
             accounts: selected,
             signup: f.get("signup") === "on",
             browser: f.get("browser") === "on",
+            privateSignInDotUrl: f.get("privateSignInDotUrl") ?? "",
           },
           "PUT",
         );
@@ -531,6 +532,7 @@ export function ClientForm({
           accounts: selected,
           signup: f.get("signup") === "on",
           browser: f.get("browser") === "on",
+          privateSignInDotUrl: f.get("privateSignInDotUrl") ?? "",
         }),
       );
     } catch (e) {
@@ -629,6 +631,26 @@ export function ClientForm({
         Allow the shared credential to fill focused fields on requested HTTPS
         sites
       </label>
+      <Field label="Dot address for private sign-in (optional)">
+        <input
+          name="privateSignInDotUrl"
+          type="url"
+          disabled={!browser}
+          placeholder="https://chatgpt.com/dots/…"
+          defaultValue={
+            client?.privateSignInDotId
+              ? `https://chatgpt.com/dots/${client.privateSignInDotId}`
+              : ""
+          }
+        />
+      </Field>
+      <p className="subtle">
+        Adding a Dot address allows Relay to fill its ChatGPT private sign-in
+        form with your shared email and password for the requested HTTPS
+        website. Keep that Dot open in paired Chrome. Relay leaves Sign in and
+        Save to Passwords to you. Leave the address blank to disable this
+        access.
+      </p>
       <label className="check">
         <input
           type="checkbox"

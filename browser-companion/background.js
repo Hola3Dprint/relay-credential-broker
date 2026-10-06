@@ -20,7 +20,10 @@ async function poll() {
   polling = true;
   try {
     const { command } = await request("/poll");
-    if (!command) return;
+    if (!command) {
+      await pollPrivateSignIn();
+      return;
+    }
     let result = { status: "BLOCKED", reason: "FIELD_FOCUS_CHANGED" };
     try {
       const tab = await chrome.tabs.get(command.target.tabId);
@@ -41,6 +44,59 @@ async function poll() {
   } catch {
   } finally {
     polling = false;
+  }
+}
+async function pollPrivateSignIn() {
+  const { jobs } = await request("/private-jobs");
+  for (const job of jobs) {
+    // Route only to the owner-configured Dot in this paired desktop profile.
+    const path = `/dots/${job.dotId}`;
+    const tabs = (
+      await chrome.tabs.query({ url: "https://chatgpt.com/dots/*" })
+    ).filter((tab) => {
+      const url = new URL(tab.url);
+      return (
+        url.origin === "https://chatgpt.com" &&
+        url.pathname === path &&
+        !url.search &&
+        !url.hash
+      );
+    });
+    if (tabs.length !== 1) continue;
+    const tabId = tabs[0].id;
+    let inspected;
+    try {
+      inspected = await chrome.tabs.sendMessage(
+        tabId,
+        { type: "relay-private-inspect", job },
+        { frameId: 0 },
+      );
+    } catch {
+      continue;
+    }
+    if (inspected?.status !== "READY" || inspected.origin !== job.origin)
+      continue;
+    const delivery = await request("/private-delivery", {
+      id: job.id,
+      dotId: job.dotId,
+      origin: inspected.origin,
+      nonce: inspected.nonce,
+      fields: inspected.fields,
+      tabId,
+    });
+    let result;
+    try {
+      result = await chrome.tabs.sendMessage(
+        tabId,
+        { type: "relay-private-fill", delivery },
+        { frameId: 0 },
+      );
+    } catch {}
+    for (const entry of delivery.fields) entry.value = "";
+    await request("/private-complete", {
+      id: job.id,
+      status: result?.status === "FILLED" ? "FILLED" : "BLOCKED",
+    });
   }
 }
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
@@ -98,6 +154,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       await poll();
     } else if (message.type === "relay-blur") {
       await request("/blur", { nonce: message.nonce });
+    } else if (
+      message.type === "relay-private-tick" &&
+      origin === "https://chatgpt.com" &&
+      sender.frameId === 0 &&
+      /^\/dots\/[0-9a-f-]{36}$/.test(new URL(sender.url).pathname)
+    ) {
+      await poll();
     } else return reply({ status: "BLOCKED" });
     reply({ status: "OK" });
   })().catch(() => reply({ status: "BLOCKED" }));

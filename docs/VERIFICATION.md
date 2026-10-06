@@ -59,7 +59,13 @@ The macOS job in [GitHub Actions run 37417111743](https://github.com/Hola3Dprint
 
 The source-only Mac ZIP was checked for the Mac guide/launcher and absence of runtime data, dependencies and credential env files. The owner's actual Mac was not accessed or installed during this Windows session. Mac Chrome pairing, live Dot tunnel calls, private credential setup and real website fills still require verification on that Mac. Native Keychain/automatic reboot unlock is not implemented. See MAC.md for the target-machine setup.
 
-## External checks still required
+## Native private sign-in trigger
+
+On October 6, 2026, added `prepare_private_signin` and `private_signin_status`, a separate per-Dot access setting, and companion 0.2.0. The trigger arms a five-minute intent before the native request waits for an owner response. The companion matches the native private form and fills it locally; it never confirms Sign in or Save to Passwords. Full TypeScript, 45 tests across seven files, and production build passed. Tests exercise wrong Dot/origin, current grants, expiry, stale/changed forms, replay, credential-free results and demo isolation.
+
+An empty native GitHub sign-in request was opened in FraudBot's actual owner-facing Chrome chat. Its current form showed the exact GitHub origin and standard username/password fields. The request was declined with no values entered; FraudBot confirmed the awaited request returned only after the owner response. The private-form setter and trigger have not yet passed a live extension test. Actual extension reload, access activation, catalog refresh and a non-submitting public-fake-credential test remain required. The shared credential was not delivered in this probe.
+
+## Remaining external checks
 
 Shared password setup, the default-email save, the generated-password option, Chrome pairing instructions and the existing client permission dialog were checked through the Codex in-app browser. The Browser plugin was not available; the available CUA browser controlled all UI interactions. Page identity, meaningful DOM content, absence of an error overlay, console error/warning logs and actual interactions passed. Checked desktop/default viewport and 390 × 844 mobile sizing. Fixed a mobile dialog-button overflow; final dialog scroll width equals client width. Temporary viewport sizing was reset. Screenshots are local outputs, not repository artifacts.
 

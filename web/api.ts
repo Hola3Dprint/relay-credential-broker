@@ -23,6 +23,7 @@ export type Client = {
   name: string;
   accounts: string[];
   operations: string[];
+  privateSignInDotId?: string;
   createdAt: string;
 };
 export type State = {

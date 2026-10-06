@@ -42,6 +42,12 @@ The Mac launcher prompts privately for the portable vault unlock passphrase and 
 
 ## Use with ChatGPT Dots
 
+For ChatGPT's native cloud-browser private sign-in, FraudBot can now call
+`prepare_private_signin` before its native sign-in request. The desktop companion
+fills the matching private form and leaves the final **Sign in** click to the
+owner. This requires a separate grant for the exact Dot chat, kept open in paired
+Chrome. See [private sign-in setup and verification](docs/PRIVATE-SIGNIN.md).
+
 See [the Dot connection guide](docs/CHATGPT-DOTS.md). Relay includes:
 
 - MCP stdio and stateless Streamable HTTP transports.
@@ -51,15 +57,17 @@ See [the Dot connection guide](docs/CHATGPT-DOTS.md). Relay includes:
 
 For shared autofill the path is **Dot → Relay MCP tool → local broker → paired Chrome companion → focused login field**. FraudBot uses its regular browser session, without any cookie transfer. See [Chrome companion setup](docs/BROWSER-COMPANION.md). Save the shared credential under Settings, pair Chrome once, and enable shared browser autofill for the existing Dot under **Settings → Connected clients → Manage access**. Signup requires both the shared credential's new-account setting and the Dot's signup permission.
 
-| Tool                  | Result                                                                                             |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `list_accounts`       | Scoped account identifiers and permitted task pages                                                |
-| `ensure_login`        | `AUTHENTICATED`, `BLOCKED`, or `ERROR`                                                             |
-| `read_account_page`   | Visible text from an exact owner-enrolled task URL                                                 |
-| `create_account`      | Configured signup, verification and optional TOTP enrollment; requires a separate signup grant     |
-| `fill_saved_username` | Fill the default email in the matching focused native-browser field; no email in the tool response |
-| `fill_saved_password` | Fill the one saved password at the exact requested HTTPS origin; returns only a status             |
-| `fill_saved_totp`     | Fill an enrolled account's authenticator code directly; requires its saved TOTP seed               |
+| Tool                     | Result                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `list_accounts`          | Scoped account identifiers and permitted task pages                                                |
+| `ensure_login`           | `AUTHENTICATED`, `BLOCKED`, or `ERROR`                                                             |
+| `read_account_page`      | Visible text from an exact owner-enrolled task URL                                                 |
+| `create_account`         | Configured signup, verification and optional TOTP enrollment; requires a separate signup grant     |
+| `fill_saved_username`    | Fill the default email in the matching focused native-browser field; no email in the tool response |
+| `fill_saved_password`    | Fill the one saved password at the exact requested HTTPS origin; returns only a status             |
+| `fill_saved_totp`        | Fill an enrolled account's authenticator code directly; requires its saved TOTP seed               |
+| `prepare_private_signin` | Arm a single-use local fill before the Dot's native private sign-in request; no credential value   |
+| `private_signin_status`  | Read the prepared fill status; FILLED is not website authentication                                |
 
 No secret retrieval, arbitrary JavaScript, cookie export, mailbox search, shell, or unrestricted browser tools are exposed. The MCP annotations accurately flag authentication workflows as potentially mutating, including configured password reset. ChatGPT and Dot permissions remain in effect.
 

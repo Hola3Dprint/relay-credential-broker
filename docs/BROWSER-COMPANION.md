@@ -10,7 +10,7 @@ On October 5, 2026, FraudBot inspected that cloud environment using read-only su
 
 The actual managed cloud Chrome rejected `chrome://extensions/` under its HTTP/HTTPS-only navigation policy and exposed no supported extension-install capability. Relay's native fill path requires its companion in the target browser, so installing only the broker would not enable fills in that managed browser. Do not bypass this restriction through browser flags, profile edits or alternate control methods. Cloud service survival across environment restarts also remains unverified.
 
-The current supported Relay path is the connected desktop Chrome profile with the paired companion and broker on the same Windows machine. ChatGPT's separate private cloud sign-in flow is described in the [official Dot computer guide](https://learn.chatgpt.com/docs/dots/computers-and-apps); the current Relay plugin has no integration with that private sign-in mechanism.
+The connected desktop Chrome profile needs the paired companion and broker on the same computer. Version 0.2.0 also adds a separately granted trigger that fills ChatGPT's owner-facing private form for a cloud browser: see [PRIVATE-SIGNIN.md](PRIVATE-SIGNIN.md). The native ChatGPT Sign in confirmation remains with the owner.
 
 ## One-time installation
 

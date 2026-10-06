@@ -47,6 +47,7 @@ export type ClientGrant = {
   tokenHash: string;
   accounts: string[];
   operations: string[];
+  privateSignInDotId?: string;
   createdAt: string;
 };
 export type BrowserCompanion = {

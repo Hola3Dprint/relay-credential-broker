@@ -399,6 +399,7 @@ export function App() {
                         {c.operations.includes("fill_saved_password")
                           ? " · shared browser autofill"
                           : ""}
+                        {c.privateSignInDotId ? " · private sign-in fill" : ""}
                       </small>
                     </div>
                     <Button

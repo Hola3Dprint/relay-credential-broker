@@ -94,6 +94,11 @@ describe("admin and client separation", () => {
       ["ensure_login", { site: "other" }],
       ["create_account", { site: "relay-demo" }],
       ["get_password", {}],
+      ["prepare_private_signin", { origin: "https://employer.example" }],
+      [
+        "private_signin_status",
+        { requestId: "00000000-0000-4000-8000-000000000001" },
+      ],
     ] as const)
       expect((await request(`/api/agent/${op}`, token, body)).status).toBe(403);
   });
@@ -118,6 +123,19 @@ describe("admin and client separation", () => {
       req.end();
     });
     expect(status).toBe(403);
+  });
+  it("never exposes private-form jobs or values to Dot/admin tokens", async () => {
+    for (const auth of [undefined, token, store.state.adminToken]) {
+      expect((await request("/api/browser/private-jobs", auth)).status).toBe(
+        401,
+      );
+      expect(
+        (await request("/api/browser/private-delivery", auth, {})).status,
+      ).toBe(401);
+      expect(
+        (await request("/api/browser/private-complete", auth, {})).status,
+      ).toBe(401);
+    }
   });
   it("supports MCP initialization and refuses unauthenticated transport access", async () => {
     const body = {
@@ -156,6 +174,8 @@ describe("admin and client separation", () => {
         "fill_saved_totp",
         "fill_saved_username",
         "list_accounts",
+        "prepare_private_signin",
+        "private_signin_status",
         "read_account_page",
       ]);
       const result = await client.callTool({
