@@ -206,7 +206,11 @@ async function main() {
     if (ready) break;
     await new Promise((accept) => setTimeout(accept, 100));
   }
-  if (!ready || exited || stopping)
+  if (stopping) {
+    await closed;
+    return;
+  }
+  if (!ready || exited)
     throw new MacSetupError("Relay could not start or unlock the Mac vault.");
   if (!flags.includes("--no-console"))
     await run(process.execPath, [join(repo, "dist/server/console.js")], env);

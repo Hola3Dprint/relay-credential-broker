@@ -47,6 +47,18 @@ try {
       await new Promise((accept) => setTimeout(accept, 100));
     }
     assert(healthy, "Mac broker must reach its local health endpoint");
+    for (
+      let attempt = 0;
+      attempt < 100 &&
+      !output.includes("Relay is running on this Mac.") &&
+      child.exitCode === null;
+      attempt++
+    )
+      await new Promise((accept) => setTimeout(accept, 50));
+    assert(
+      output.includes("Relay is running on this Mac."),
+      "Launcher must finish startup before the restart check",
+    );
     const envelope = JSON.parse(
       await readFile(join(dataDir, "master-key.json"), "utf8"),
     );
